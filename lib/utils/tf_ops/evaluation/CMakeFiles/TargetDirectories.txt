@@ -1,0 +1,3 @@
+/cephfs/group/youtu/person/tomztyang/3D_detection/3D_ssd/lib/utils/tf_ops/evaluation/CMakeFiles/edit_cache.dir
+/cephfs/group/youtu/person/tomztyang/3D_detection/3D_ssd/lib/utils/tf_ops/evaluation/CMakeFiles/rebuild_cache.dir
+/cephfs/group/youtu/person/tomztyang/3D_detection/3D_ssd/lib/utils/tf_ops/evaluation/CMakeFiles/evaluate_offline.dir

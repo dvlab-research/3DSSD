@@ -1,0 +1,40 @@
+#IncludeRegexLine: ^[ 	]*#[ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/cephfs/group/youtu/person/tomztyang/3D_detection/3D_ssd/lib/utils/tf_ops/evaluation/evaluate.cpp
+iostream
+-
+algorithm
+-
+cstdio
+-
+cmath
+-
+vector
+-
+numeric
+-
+cstring
+-
+cassert
+-
+dirent.h
+-
+boost/numeric/ublas/matrix.hpp
+-
+boost/numeric/ublas/io.hpp
+-
+boost/geometry.hpp
+-
+boost/geometry/geometries/point_xy.hpp
+-
+boost/geometry/geometries/polygon.hpp
+-
+boost/geometry/geometries/adapted/c_array.hpp
+-
+

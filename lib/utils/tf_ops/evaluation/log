@@ -1,0 +1,137 @@
+In file included from tf_evaluate.cpp:10:0:
+evaluate.cpp: In function ‘bool eval(const double*, const string*, const int*, int, double*, double*, double*, double*, double*, double*)’:
+evaluate.cpp:908:134: error: invalid initialization of reference of type ‘std::vector<double>&’ from expression of type ‘__gnu_cxx::__alloc_traits<std::allocator<double> >::value_type {aka double}’
+       if (  !eval_class(fp_det, fp_ori, cls, groundtruth, detections, compute_aos, imageBoxOverlap, precision[0], aos[0], EASY, IMAGE)
+                                                                                                                                      ^
+evaluate.cpp:724:6: note: in passing argument 8 of ‘bool eval_class(FILE*, FILE*, CLASSES, const std::vector<std::vector<tGroundtruth> >&, const std::vector<std::vector<tDetection> >&, bool, double (*)(tDetection, tGroundtruth, int32_t), std::vector<double>&, std::vector<double>&, DIFFICULTY, METRIC)’
+ bool eval_class (FILE *fp_det, FILE *fp_ori, CLASSES current_class,
+      ^
+evaluate.cpp:909:138: error: invalid initialization of reference of type ‘std::vector<double>&’ from expression of type ‘__gnu_cxx::__alloc_traits<std::allocator<double> >::value_type {aka double}’
+          || !eval_class(fp_det, fp_ori, cls, groundtruth, detections, compute_aos, imageBoxOverlap, precision[1], aos[1], MODERATE, IMAGE)
+                                                                                                                                          ^
+evaluate.cpp:724:6: note: in passing argument 8 of ‘bool eval_class(FILE*, FILE*, CLASSES, const std::vector<std::vector<tGroundtruth> >&, const std::vector<std::vector<tDetection> >&, bool, double (*)(tDetection, tGroundtruth, int32_t), std::vector<double>&, std::vector<double>&, DIFFICULTY, METRIC)’
+ bool eval_class (FILE *fp_det, FILE *fp_ori, CLASSES current_class,
+      ^
+evaluate.cpp:910:134: error: invalid initialization of reference of type ‘std::vector<double>&’ from expression of type ‘__gnu_cxx::__alloc_traits<std::allocator<double> >::value_type {aka double}’
+          || !eval_class(fp_det, fp_ori, cls, groundtruth, detections, compute_aos, imageBoxOverlap, precision[2], aos[2], HARD, IMAGE) ) {
+                                                                                                                                      ^
+evaluate.cpp:724:6: note: in passing argument 8 of ‘bool eval_class(FILE*, FILE*, CLASSES, const std::vector<std::vector<tGroundtruth> >&, const std::vector<std::vector<tDetection> >&, bool, double (*)(tDetection, tGroundtruth, int32_t), std::vector<double>&, std::vector<double>&, DIFFICULTY, METRIC)’
+ bool eval_class (FILE *fp_det, FILE *fp_ori, CLASSES current_class,
+      ^
+evaluate.cpp:927:136: error: invalid initialization of reference of type ‘std::vector<double>&’ from expression of type ‘__gnu_cxx::__alloc_traits<std::allocator<double> >::value_type {aka double}’
+       if(   !eval_class(fp_det, fp_ori, cls, groundtruth, detections, compute_aos, groundBoxOverlap, precision[0], aos[0], EASY, GROUND)
+                                                                                                                                        ^
+evaluate.cpp:724:6: note: in passing argument 8 of ‘bool eval_class(FILE*, FILE*, CLASSES, const std::vector<std::vector<tGroundtruth> >&, const std::vector<std::vector<tDetection> >&, bool, double (*)(tDetection, tGroundtruth, int32_t), std::vector<double>&, std::vector<double>&, DIFFICULTY, METRIC)’
+ bool eval_class (FILE *fp_det, FILE *fp_ori, CLASSES current_class,
+      ^
+evaluate.cpp:928:140: error: invalid initialization of reference of type ‘std::vector<double>&’ from expression of type ‘__gnu_cxx::__alloc_traits<std::allocator<double> >::value_type {aka double}’
+          || !eval_class(fp_det, fp_ori, cls, groundtruth, detections, compute_aos, groundBoxOverlap, precision[1], aos[1], MODERATE, GROUND)
+                                                                                                                                            ^
+evaluate.cpp:724:6: note: in passing argument 8 of ‘bool eval_class(FILE*, FILE*, CLASSES, const std::vector<std::vector<tGroundtruth> >&, const std::vector<std::vector<tDetection> >&, bool, double (*)(tDetection, tGroundtruth, int32_t), std::vector<double>&, std::vector<double>&, DIFFICULTY, METRIC)’
+ bool eval_class (FILE *fp_det, FILE *fp_ori, CLASSES current_class,
+      ^
+evaluate.cpp:929:136: error: invalid initialization of reference of type ‘std::vector<double>&’ from expression of type ‘__gnu_cxx::__alloc_traits<std::allocator<double> >::value_type {aka double}’
+          || !eval_class(fp_det, fp_ori, cls, groundtruth, detections, compute_aos, groundBoxOverlap, precision[2], aos[2], HARD, GROUND)) {
+                                                                                                                                        ^
+evaluate.cpp:724:6: note: in passing argument 8 of ‘bool eval_class(FILE*, FILE*, CLASSES, const std::vector<std::vector<tGroundtruth> >&, const std::vector<std::vector<tDetection> >&, bool, double (*)(tDetection, tGroundtruth, int32_t), std::vector<double>&, std::vector<double>&, DIFFICULTY, METRIC)’
+ bool eval_class (FILE *fp_det, FILE *fp_ori, CLASSES current_class,
+      ^
+evaluate.cpp:951:48: error: invalid cast from type ‘std::vector<double>’ to type ‘double’
+       precision_3d[c*3+i] = double(precision[i]);
+                                                ^
+evaluate.cpp:952:36: error: invalid cast from type ‘std::vector<double>’ to type ‘double’
+       aos_3d[c*3+i] = double(aos[i]);
+                                    ^
+In file included from tf_evaluate.cpp:8:0:
+/usr/local/lib/python3.5/dist-packages/tensorflow/include/tensorflow/core/framework/shape_inference.h: In lambda function:
+/usr/local/lib/python3.5/dist-packages/tensorflow/include/tensorflow/core/framework/shape_inference.h:99:3: error: ‘tensorflow::shape_inference::ShapeHandle::ShapeHandle(const tensorflow::shape_inference::Shape*)’ is private
+   ShapeHandle(const Shape* shape) { ptr_ = shape; }
+   ^
+tf_evaluate.cpp:25:39: error: within this context
+         c->set_output(0, NUM_CLASS * 3);
+                                       ^
+tf_evaluate.cpp:25:39: error: invalid conversion from ‘int’ to ‘const tensorflow::shape_inference::Shape*’ [-fpermissive]
+In file included from tf_evaluate.cpp:8:0:
+/usr/local/lib/python3.5/dist-packages/tensorflow/include/tensorflow/core/framework/shape_inference.h:99:3: note:   initializing argument 1 of ‘tensorflow::shape_inference::ShapeHandle::ShapeHandle(const tensorflow::shape_inference::Shape*)’
+   ShapeHandle(const Shape* shape) { ptr_ = shape; }
+   ^
+/usr/local/lib/python3.5/dist-packages/tensorflow/include/tensorflow/core/framework/shape_inference.h:99:3: error: ‘tensorflow::shape_inference::ShapeHandle::ShapeHandle(const tensorflow::shape_inference::Shape*)’ is private
+tf_evaluate.cpp:26:39: error: within this context
+         c->set_output(1, NUM_CLASS * 3);
+                                       ^
+tf_evaluate.cpp:26:39: error: invalid conversion from ‘int’ to ‘const tensorflow::shape_inference::Shape*’ [-fpermissive]
+In file included from tf_evaluate.cpp:8:0:
+/usr/local/lib/python3.5/dist-packages/tensorflow/include/tensorflow/core/framework/shape_inference.h:99:3: note:   initializing argument 1 of ‘tensorflow::shape_inference::ShapeHandle::ShapeHandle(const tensorflow::shape_inference::Shape*)’
+   ShapeHandle(const Shape* shape) { ptr_ = shape; }
+   ^
+/usr/local/lib/python3.5/dist-packages/tensorflow/include/tensorflow/core/framework/shape_inference.h:99:3: error: ‘tensorflow::shape_inference::ShapeHandle::ShapeHandle(const tensorflow::shape_inference::Shape*)’ is private
+tf_evaluate.cpp:27:39: error: within this context
+         c->set_output(2, NUM_CLASS * 3);
+                                       ^
+tf_evaluate.cpp:27:39: error: invalid conversion from ‘int’ to ‘const tensorflow::shape_inference::Shape*’ [-fpermissive]
+In file included from tf_evaluate.cpp:8:0:
+/usr/local/lib/python3.5/dist-packages/tensorflow/include/tensorflow/core/framework/shape_inference.h:99:3: note:   initializing argument 1 of ‘tensorflow::shape_inference::ShapeHandle::ShapeHandle(const tensorflow::shape_inference::Shape*)’
+   ShapeHandle(const Shape* shape) { ptr_ = shape; }
+   ^
+/usr/local/lib/python3.5/dist-packages/tensorflow/include/tensorflow/core/framework/shape_inference.h:99:3: error: ‘tensorflow::shape_inference::ShapeHandle::ShapeHandle(const tensorflow::shape_inference::Shape*)’ is private
+tf_evaluate.cpp:28:39: error: within this context
+         c->set_output(3, NUM_CLASS * 3);
+                                       ^
+tf_evaluate.cpp:28:39: error: invalid conversion from ‘int’ to ‘const tensorflow::shape_inference::Shape*’ [-fpermissive]
+In file included from tf_evaluate.cpp:8:0:
+/usr/local/lib/python3.5/dist-packages/tensorflow/include/tensorflow/core/framework/shape_inference.h:99:3: note:   initializing argument 1 of ‘tensorflow::shape_inference::ShapeHandle::ShapeHandle(const tensorflow::shape_inference::Shape*)’
+   ShapeHandle(const Shape* shape) { ptr_ = shape; }
+   ^
+/usr/local/lib/python3.5/dist-packages/tensorflow/include/tensorflow/core/framework/shape_inference.h:99:3: error: ‘tensorflow::shape_inference::ShapeHandle::ShapeHandle(const tensorflow::shape_inference::Shape*)’ is private
+tf_evaluate.cpp:29:39: error: within this context
+         c->set_output(4, NUM_CLASS * 3);
+                                       ^
+tf_evaluate.cpp:29:39: error: invalid conversion from ‘int’ to ‘const tensorflow::shape_inference::Shape*’ [-fpermissive]
+In file included from tf_evaluate.cpp:8:0:
+/usr/local/lib/python3.5/dist-packages/tensorflow/include/tensorflow/core/framework/shape_inference.h:99:3: note:   initializing argument 1 of ‘tensorflow::shape_inference::ShapeHandle::ShapeHandle(const tensorflow::shape_inference::Shape*)’
+   ShapeHandle(const Shape* shape) { ptr_ = shape; }
+   ^
+/usr/local/lib/python3.5/dist-packages/tensorflow/include/tensorflow/core/framework/shape_inference.h:99:3: error: ‘tensorflow::shape_inference::ShapeHandle::ShapeHandle(const tensorflow::shape_inference::Shape*)’ is private
+tf_evaluate.cpp:30:39: error: within this context
+         c->set_output(5, NUM_CLASS * 3);
+                                       ^
+tf_evaluate.cpp:30:39: error: invalid conversion from ‘int’ to ‘const tensorflow::shape_inference::Shape*’ [-fpermissive]
+In file included from tf_evaluate.cpp:8:0:
+/usr/local/lib/python3.5/dist-packages/tensorflow/include/tensorflow/core/framework/shape_inference.h:99:3: note:   initializing argument 1 of ‘tensorflow::shape_inference::ShapeHandle::ShapeHandle(const tensorflow::shape_inference::Shape*)’
+   ShapeHandle(const Shape* shape) { ptr_ = shape; }
+   ^
+tf_evaluate.cpp: In function ‘void evaluate_cpu(const float*, const string*, const int*, int, float*, float*, float*, float*, float*, float*)’:
+tf_evaluate.cpp:49:129: error: no matching function for call to ‘eval(const float*&, const string*&, const int*&, int&, float*&, float*&, float*&, float*&, float*&, float*&)’
+     eval(detections, names, num_list, num_images, precision_image, aos_image, precision_ground, aos_ground, precision_3d, aos_3d);    
+                                                                                                                                 ^
+In file included from tf_evaluate.cpp:10:0:
+evaluate.cpp:874:6: note: candidate: bool eval(const double*, const string*, const int*, int, double*, double*, double*, double*, double*, double*)
+ bool eval(const double* dets, const string* names, const int* num_list, const int num_images, double* precision_image, double* aos_image, double* precision_ground, double* aos_ground, double* precision_3d, double* aos_3d){
+      ^
+evaluate.cpp:874:6: note:   no known conversion for argument 1 from ‘const float*’ to ‘const double*’
+evaluate.cpp:959:6: note: candidate: bool eval(std::string, bool, bool, bool, bool)
+ bool eval(string result_sha, bool e_image=false, bool e_ground=false, bool e_3d=false, bool c_aos=false){
+      ^
+evaluate.cpp:959:6: note:   candidate expects 5 arguments, 10 provided
+tf_evaluate.cpp: In member function ‘virtual void EvaluateOp::Compute(tensorflow::OpKernelContext*)’:
+tf_evaluate.cpp:106:142: error: cannot convert ‘const int*’ to ‘const string* {aka const std::basic_string<char>*}’ for argument ‘2’ to ‘void evaluate_cpu(const float*, const string*, const int*, int, float*, float*, float*, float*, float*, float*)’
+             evaluate_cpu(detections, names, numlist, n_images, precision_image, aos_image, precision_ground, aos_ground, precision_3d, aos_3d);
+                                                                                                                                              ^
+In file included from tf_evaluate.cpp:10:0:
+evaluate.cpp: In function ‘void saveAndPlotPlots(std::string, std::string, std::string, std::vector<double>*, bool)’:
+evaluate.cpp:862:20: warning: ignoring return value of ‘int system(const char*)’, declared with attribute warn_unused_result [-Wunused-result]
+     system(command);
+                    ^
+evaluate.cpp:867:18: warning: ignoring return value of ‘int system(const char*)’, declared with attribute warn_unused_result [-Wunused-result]
+   system(command);
+                  ^
+evaluate.cpp:869:18: warning: ignoring return value of ‘int system(const char*)’, declared with attribute warn_unused_result [-Wunused-result]
+   system(command);
+                  ^
+evaluate.cpp:871:18: warning: ignoring return value of ‘int system(const char*)’, declared with attribute warn_unused_result [-Wunused-result]
+   system(command);
+                  ^
+evaluate.cpp: In function ‘bool eval(std::string, bool, bool, bool, bool)’:
+evaluate.cpp:969:40: warning: ignoring return value of ‘int system(const char*)’, declared with attribute warn_unused_result [-Wunused-result]
+   system(("mkdir " + plot_dir).c_str());
+                                        ^
