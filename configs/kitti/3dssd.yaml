@@ -1,0 +1,69 @@
+DATASET:
+  TYPE: 'KITTI'
+  POINT_CLOUD_RANGE: (-40, 40, -5, 3, 0, 70)
+  KITTI:
+    CLS_LIST: ('Car', )
+    BASE_DIR_PATH: 'dataset/KITTI/object'
+    TRAIN_LIST: 'dataset/KITTI/object/train.txt'
+    VAL_LIST: 'dataset/KITTI/object/val.txt'
+    SAVE_NUMPY_PATH: 'data/KITTI'
+TRAIN:
+  AUGMENTATIONS:
+    OPEN: True
+    FLIP: True
+    MIXUP:
+      OPEN: True
+      SAVE_NUMPY_PATH: 'mixup_database/KITTI'
+      PC_LIST: 'train'
+      CLASS: ('Car', )
+      NUMBER: (15, )
+  CONFIG:
+    BATCH_SIZE: 4
+    GPU_NUM: 4
+    MAX_ITERATIONS: 56490
+    CHECKPOINT_INTERVAL: 807
+    SUMMARY_INTERVAL: 10
+TEST:
+  WITH_GT: True
+DATALOADER:
+  NUM_THREADS: 16 # GPU_NUM x BATCH_SIZE
+MODEL:
+  POINTS_NUM_FOR_TRAINING: 16384
+  TYPE: 'SingleStage'
+  ANGLE_CLS_NUM: 12
+  MAX_TRANSLATE_RANGE: [-3.0, -2.0, -3.0]
+  # backbones
+  NETWORK:
+    SYNC_BN: False
+    USE_GN: False
+    AGGREGATION_SA_FEATURE: True
+    ARCHITECTURE: [
+        [[0], [0], 4096, [0.2,0.4,0.8], [32,64,128], [[32,32,64], [64,64,128], [64,96,128]],
+         True, 'D-FPS', 0, 'From', -1, False, 'SA_Layer', 'layer1', False, -1], # layer1
+        [[1], [1], 1024, [0.4,0.8,1.6], [64,64,64], [[64,64,128], [128,128,256], [128,128,256]], True, 'FS', 0, 'From', -1, True, 'SA_Layer', 'layer2', False, -1], # layer2
+        [[2], [2], 256, [1.6,4.8], [64, 128], [[128,128,256], [128,256,256]],
+         True, 'F-FPS', 1024, 'To', -1, True, 'SA_Layer', 'layer3', False, -1], # layer3
+        [[3], [3], 256, -1, -1, [256],
+         True, -1, -1, -1, -1, -1, 'Vote_Layer', 'Vote3', False, -1], # layer3
+        [[2], [2], 256, [1.6,3.2,4.8], [64,64,128], [[128,128,256], [128,128,256], [128,256,256]], True, 'D-FPS', 1024, 'From', 3, True, 'SA_Layer', 'layer3_frf', False, -1], # layer3_frf
+        [[5], [5], -1, [4.8, 6.4], [32, 32], [[256,256,512], [256,512,1024]],
+         True, 'D-FPS', 0, 'From', -1, False, 'SA_Layer', 'layer4', False, 4], # layer4
+    ]
+    HEAD: [[[6], [6], [128,], True, 'detection_head']]
+  FIRST_STAGE: 
+    MAX_OUTPUT_NUM: 100 
+    NMS_THRESH: 0.1
+    MINIBATCH_NUM: -1
+    REGRESSION_METHOD: 'Dist-Anchor-free'
+    CLS_ACTIVATION: 'Sigmoid'
+    ASSIGN_METHOD: 'Mask'
+    CORNER_LOSS: True
+    CLASSIFICATION_LOSS:
+      TYPE: 'Center-ness'
+      SOFTMAX_SAMPLE_RANGE: 10.0
+SOLVER:
+  TYPE: 'Adam'
+  BASE_LR: 0.002
+  STEPS: [32280, 40350, 48420]
+
+    

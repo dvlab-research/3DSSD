@@ -1,0 +1,7 @@
+tensorflow-gpu==1.4.0
+numpy
+numba
+mayavi
+tqdm
+json
+
