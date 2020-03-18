@@ -16,7 +16,7 @@ from utils.box_3d_utils import transfer_box3d_to_corners
 import dataset.maps_dict as maps_dict
 
 class SingleStageDetector:
-    def __init__(self, batch_size, is_training)
+    def __init__(self, batch_size, is_training):
         self.batch_size = batch_size
         self.is_training = is_training
 
@@ -99,8 +99,6 @@ class SingleStageDetector:
         self.labels[maps_dict.GT_PMASK] = []
         self.labels[maps_dict.GT_NMASK] = []
         self.labels[maps_dict.CORNER_LOSS_GT_BOXES_CORNERS] = []
-
-        if cfg.MODEL.FIRST_STAGE.PREDICT_ATTRIBUTE_AND_VELOCITY:
 
     def network_forward(self, point_cloud, bn_decay):
         l0_xyz = tf.slice(point_cloud, [0,0,0], [-1,-1,3])

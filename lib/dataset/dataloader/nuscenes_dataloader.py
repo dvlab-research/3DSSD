@@ -13,13 +13,14 @@ from core.config import cfg
 import utils.kitti_aug as kitti_aug
 import utils.box_3d_utils as box_3d_utils
 import dataset.maps_dict as maps_dict
-import dataset.dataloader.nuscenes_utils as nuscenes_utils
-from dataset.dataloader.nuscenes_split import *
 
+from dataset.dataloader.nuscenes_utils import * 
+from dataset.dataloader.nuscenes_split import *
 from utils.voxelnet_aug import check_inside_points
 from utils.anchor_encoder import encode_angle2class_np
 from builder.voxel_generator.voxel_generator import VoxelGenerator
 from builder.data_augmentor import DataAugmentor
+from nuscenes.nuscenes import NuScenes
 from nuscenes.utils.data_classes import LidarPointCloud, RadarPointCloud, Box
 from pyquaternion import Quaternion
 from dataset.data_provider.data_provider import DataFromList, MultiProcessMapData, BatchDataNuscenes
@@ -246,7 +247,7 @@ class NuScenesDataset:
     def load_batch(self, batch_size):
         perm = np.arange(self.sample_num).tolist() # a list indicates each data
         dp = DataFromList(perm, is_train=self.is_training, shuffle=self.is_training)
-        dp = MultiProcessMapData(dp, self.load_samples, self.num_workers)
+        dp = MultiProcessMapData(dp, self.load_samples, self.workers_num)
 
         use_list = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1]
         use_concat = [0, 0, 0, 2, 2, 2, 2, 2, 2, 0, 0, 0, 0]
@@ -432,7 +433,8 @@ class NuScenesDataset:
 
                 # create_gt_dataset
                 if self.img_list in ['train', 'val', 'trainval'] and cfg.TEST.WITH_GT and cfg.TRAIN.AUGMENTATIONS.MIXUP.OPEN:
-                    mixup_sample_dicts = generate_mixup_sample(sample_dict)
+                    mixup_sample_dicts = self.generate_mixup_sample(sample_dict)
+                    if mixup_sample_dicts is None: continue
                     for mixup_sample_dict in mixup_sample_dicts:
                         cur_cls = mixup_sample_dict[maps_dict.KEY_SAMPLED_GT_CLSES]
                         mixup_label_dict[cur_cls].append(mixup_sample_dict)
@@ -454,18 +456,18 @@ class NuScenesDataset:
         print('Ending of the preprocess !!!')
 
 
-    def preprocess_mixup_dataset(self, sample_dict):
+    def generate_mixup_sample(self, sample_dict):
         """ This function is bound for generating mixup dataset """
         all_boxes_3d = sample_dict[maps_dict.KEY_LABEL_BOXES_3D]
         all_boxes_classes = sample_dict[maps_dict.KEY_LABEL_CLASSES]
         point_cloud_path = sample_dict[maps_dict.KEY_POINT_CLOUD]
 
         # then we first cast all_boxes_3d to kitti format
-        all_boxes_3d = nuscenes_utils.cast_box_3d_to_kitti_format(all_boxes_3d)
+        all_boxes_3d = cast_box_3d_to_kitti_format(all_boxes_3d)
 
         # load points
         points = np.fromfile(point_cloud_path, dtype=np.float32).reshape((-1, 5))
-        points = nuscenes_utils.cast_points_to_kitti(points)
+        points = cast_points_to_kitti(points)
         points[:, 3] /= 255
         points[:, 4] = 0 # timestamp is zero
         
@@ -554,7 +556,7 @@ class NuScenesDataset:
                     pred_velo_op = pred_velo_op[arg_sort_idx]
 
             # then transform pred_bbox_op to nuscenes_box
-            boxes = nuscenes_utils.cast_kitti_format_to_nusc_box_3d(pred_bbox_3d_op, pred_cls_score_op, pred_cls_category_op, cur_attribute=pred_attr_op, cur_velocity=pred_velo_op, classes=self.idx2cls_dict)
+            boxes = cast_kitti_format_to_nusc_box_3d(pred_bbox_3d_op, pred_cls_score_op, pred_cls_category_op, cur_attribute=pred_attr_op, cur_velocity=pred_velo_op, classes=self.idx2cls_dict)
             for box in boxes:
                 velocity = box.velocity[:2].tolist()
                 if len(sweeps) == 0:

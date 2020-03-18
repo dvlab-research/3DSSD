@@ -1,8 +1,6 @@
 import numpy as np
 import tensorflow as tf
 
-import utils.format_checker as fc
-
 from core.config import cfg
 import utils.anchor_encoder as anchor_encoder
 

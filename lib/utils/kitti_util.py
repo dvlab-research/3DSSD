@@ -283,6 +283,40 @@ def read_label(label_filename):
     objects = [Object3d(line) for line in lines]
     return objects
 
+def get_road_plane(img_idx, planes_dir):
+    """Reads the road plane from file
+
+    :param int img_idx : Index of image
+    :param str planes_dir : directory containing plane text files
+
+    :return plane : List containing plane equation coefficients
+    """
+
+    plane_file = planes_dir + '/%06d.txt' % img_idx
+
+    with open(plane_file, 'r') as input_file:
+        lines = input_file.readlines()
+        input_file.close()
+
+    # Plane coefficients stored in 4th row
+    lines = lines[3].split()
+
+    # Convert str to float
+    lines = [float(i) for i in lines]
+
+    plane = np.asarray(lines)
+
+    # Ensure normal is always facing up.
+    # In Kitti's frame of reference, +y is down
+    if plane[1] > 0:
+        plane = -plane
+
+    # Normalize the plane coefficients
+    norm = np.linalg.norm(plane[0:3])
+    plane = plane / norm
+
+    return plane
+
 def load_image(img_filename):
     return cv2.imread(img_filename)
 

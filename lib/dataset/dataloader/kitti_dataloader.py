@@ -17,6 +17,7 @@ from utils.points_filter import *
 from utils.voxelnet_aug import check_inside_points
 from utils.anchors_util import project_to_image_space_corners
 from utils.tf_ops.evaluation.tf_evaluate import evaluate
+from dataset.data_provider.data_provider import DataFromList, MultiProcessMapData, BatchDataNuscenes
 
 class KittiDataset:
     """
@@ -115,7 +116,10 @@ class KittiDataset:
             residual_angle = np.zeros([1], np.float32)
 
         if self.is_training: # then add data augmentation here
-            points, sem_labels, sem_dists, label_boxes_3d, label_classes = self.data_augmentor.kitti_forward(points, sem_labels, sem_dists, label_boxes_3d, label_classes, pipename)
+            # get plane first
+            sample_name = sample_dict[maps_dict.KEY_SAMPLE_NAME]
+            plane = self.kitti_object.get_planes(sample_name) 
+            points, sem_labels, sem_dists, label_boxes_3d, label_classes = self.data_augmentor.kitti_forward(points, sem_labels, sem_dists, label_boxes_3d, label_classes, plane, pipename)
             cur_label_num = len(label_boxes_3d)
             ry_cls_label, residual_angle = encode_angle2class_np(label_boxes_3d[:, -1], num_class=cfg.MODEL.ANGLE_CLS_NUM)
 
@@ -145,7 +149,7 @@ class KittiDataset:
         """
         perm = np.arange(self.sample_num).tolist() # a list indicates each data
         dp = DataFromList(perm, is_train=self.is_training, shuffle=self.is_training)
-        dp = MultiProcessMapData(dp, self.load_samples, self.num_workers)
+        dp = MultiProcessMapData(dp, self.load_samples, self.workers_num)
 
         use_concat = [0, 0, 0, 2, 2, 2, 2, 0, 0]
         dp = BatchDataNuscenes(dp, batch_size, use_concat=use_concat)
@@ -156,7 +160,7 @@ class KittiDataset:
 
     # Preprocess data
     def preprocess_samples(self, indices):
-        samples_dicts = []
+        sample_dicts = []
         biggest_label_num = 0
         for sample_idx in indices:
             sample_id = int(self.idx_list[sample_idx])
@@ -243,8 +247,8 @@ class KittiDataset:
     def generate_mixup_sample(self, sample_dict):
         label_boxes_3d = sample_dict[maps_dict.KEY_LABEL_BOXES_3D]
         label_classes = sample_dict[maps_dict.KEY_LABEL_CLASSES]
-        points = sample_dict[maps_dict.KEY_SAMPLE_NAME]
-        label_class_names = [self.idx2cls_dict[label] for label in label_classes]
+        points = sample_dict[maps_dict.KEY_POINT_CLOUD]
+        label_class_names = np.array([self.idx2cls_dict[label] for label in label_classes])
 
         tmp_label_boxes_3d = label_boxes_3d.copy()
         # expand by 0.1, so as to cover context information
@@ -289,7 +293,8 @@ class KittiDataset:
                 # create_gt_dataset
                 if self.img_list in ['train', 'val', 'trainval'] and cfg.TEST.WITH_GT and cfg.TRAIN.AUGMENTATIONS.MIXUP.OPEN:
                     # then also parse the sample_dicts so as to generate mixup database
-                    mixup_sample_dicts = generate_mixup_sample(sample_dicts[0])
+                    mixup_sample_dicts = self.generate_mixup_sample(sample_dicts[0])
+                    if mixup_sample_dicts is None: continue
                     for mixup_sample_dict in mixup_sample_dicts:
                         cur_cls = mixup_sample_dict[maps_dict.KEY_SAMPLED_GT_CLSES]
                         mixup_label_dict[cur_cls].append(mixup_sample_dict)

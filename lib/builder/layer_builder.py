@@ -31,6 +31,7 @@ class LayerBuilder:
         self.layer_type = self.layer_architecture[12]
         self.scope = self.layer_architecture[13] 
         self.dilated_group = self.layer_architecture[14]
+        self.vote_ctr_index = self.layer_architecture[15]
 
         if self.layer_type in ['SA_Layer', 'Vote_Layer']:
             assert len(self.xyz_index) == 1
@@ -47,7 +48,7 @@ class LayerBuilder:
             xyz_input.append(xyz_list[xyz_index])
  
         feature_input = []
-        for feature_index = self.feature_index:
+        for feature_index in self.feature_index:
             feature_input.append(feature_list[feature_index])
 
         if self.former_fps_idx != -1:
@@ -55,8 +56,12 @@ class LayerBuilder:
         else:
             former_fps_idx = None
 
+        if self.vote_ctr_index != -1:
+            vote_ctr = xyz_list[self.vote_ctr_index]
+        else: vote_ctr = None
+
         if self.layer_type == 'SA_Layer':
-            new_xyz, new_points, new_fps_idx = pointnet_sa_module_msg(xyz_input[0], feature_input[0], self.npoint, self.radius_list, self.nsample_list, self.mlp_list, self.is_training, bn_decay, self.bn, self.fps, self.fps_start_idx, self.fps_condition, self.former_fps_idx, self.use_attention, self.scope, self.dilated_group)
+            new_xyz, new_points, new_fps_idx = pointnet_sa_module_msg(xyz_input[0], feature_input[0], self.npoint, self.radius_list, self.nsample_list, self.mlp_list, self.is_training, bn_decay, self.bn, self.fps, self.fps_start_idx, self.fps_condition, self.former_fps_idx, self.use_attention, self.scope, self.dilated_group, vote_ctr)
             xyz_list.append(new_xyz)
             feature_list.append(new_points)
             fps_idx_list.append(new_fps_idx)
@@ -65,7 +70,7 @@ class LayerBuilder:
             new_points = pointnet_fp_module(xyz_input[0], xyz_input[1], feature_input[0], feature_input[1], self.mlp_list, self.is_training, bn_decay, self.scope, self.bn)
             feature_list.append(new_points)
         
-        elif self.layer_type == 'Vote_Layer'
+        elif self.layer_type == 'Vote_Layer':
             new_xyz, new_points = vote_layer(xyz_input[0], feature_input[0], self.mlp_list, self.is_training, bn_decay, self.bn, self.scope)
             output_dict[maps_dict.PRED_VOTE_BASE].append(xyz_input[0])
             output_dict[maps_dict.PRED_VOTE_OFFSET].append(new_xyz)

@@ -6,9 +6,6 @@ import os
 # debugging
 import numpy as np
 from core.config import cfg
-import utils.kitti_object as kitti_object
-import utils.box_3d_utils as box_3d_utils
-import wavedata.tools.obj_detection.obj_utils as obj_utils
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(BASE_DIR)

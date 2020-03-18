@@ -19,9 +19,10 @@ from modeling import choose_model
 def parse_args():
     parser = argparse.ArgumentParser(description='Trainer')
     parser.add_argument('--cfg', required=True, help='Config file for training')
-    parser.add_argument('--img_list', default='train', required=True, help='Train/Val/Trainval list')
+    parser.add_argument('--img_list', default='train', help='Train/Val/Trainval list')
     parser.add_argument('--split', default='training', help='Dataset split')
     parser.add_argument('--restore_model_path', default=None, help='Restore model path e.g. log/model.ckpt [default: None]')
+    args = parser.parse_args()
 
     return args
 

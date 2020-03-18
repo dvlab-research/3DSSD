@@ -3,8 +3,12 @@ TFPATH=$1 # e.g: /usr/local/lib/python3.5/dist-packages/tensorflow
 CUDAPATH=$2 # e.g: /usr/local/cuda-9.0
 OPSPATH="lib/utils/tf_ops"
 
-# install dependencies
-pip install -r requirements.txt
+# voxel operation
+cd lib/builder/voxel_generator
+./build.sh
+cd dist
+pip install points2voxel-0.0.1-cp36-cp36m-linux_x86_64.whl
+cd ../../../..
 
 # evaluation
 cd ${OPSPATH}/evaluation
@@ -20,7 +24,7 @@ cd ..
 # interpolation
 cd interpolation
 $CUDAPATH/bin/nvcc tf_interpolate_g.cu -o tf_interpolate_g.cu.o -c -O2 -DGOOGLE_CUDA=1 -x cu -Xcompiler -fPIC
-g++ -std=c++11 tf_interpolate.cpp -o tf_interpolate_so.so -shared -fPIC -I $TFPATH/include -I $CUDAPATH/include -I $TFPATH/include/external/nsync/public -lcudart -L $CUDAPATH/lib64/ -L$TFPATH -ltensorflow_framework -O2 -D_GLIBCXX_USE_CXX11_ABI=0
+g++ -std=c++11 tf_interpolate.cpp tf_interpolate_g.cu.o -o tf_interpolate_so.so -shared -fPIC -I $TFPATH/include -I $CUDAPATH/include -I $TFPATH/include/external/nsync/public -lcudart -L $CUDAPATH/lib64/ -L$TFPATH -ltensorflow_framework -O2 -D_GLIBCXX_USE_CXX11_ABI=0
 cd ..
 
 # points pooling
@@ -31,7 +35,7 @@ cd ..
 
 # sampling
 cd sampling
-$CUDAPATH/nvcc tf_sampling_g.cu -o tf_sampling_g.cu.o -c -O2 -DGOOGLE_CUDA=1 -x cu -Xcompiler -fPIC
+$CUDAPATH/bin/nvcc tf_sampling_g.cu -o tf_sampling_g.cu.o -c -O2 -DGOOGLE_CUDA=1 -x cu -Xcompiler -fPIC
 g++ -std=c++11 tf_sampling.cpp tf_sampling_g.cu.o -o tf_sampling_so.so -shared -fPIC -I $TFPATH/include -I $CUDAPATH/include -I $TFPATH/include/external/nsync/public -lcudart -L $CUDAPATH/lib64/ -L$TFPATH -ltensorflow_framework -O2 -D_GLIBCXX_USE_CXX11_ABI=0
 cd ..
 

@@ -1,11 +1,12 @@
 import tensorflow as tf
 import numpy as np
 
-import builder.MixupSampler as MixupSampler
 import dataset.maps_dict as maps_dict
-from utils.voxelnet_aug import *
 import utils.kitti_aug as kitti_aug
 import utils.rotation_util as rotation_util
+
+from builder.mixup_sampler import MixupSampler
+from utils.voxelnet_aug import *
 
 class DataAugmentor:
     def __init__(self, dataset, workers_num=1):
@@ -41,7 +42,7 @@ class DataAugmentor:
         self.single_aug_prob = cfg.TRAIN.AUGMENTATIONS.PROB 
 
 
-    def kitti_forward(self, points, sem_labels, sem_dists, label_boxes_3d, label_classes, pipename):
+    def kitti_forward(self, points, sem_labels, sem_dists, label_boxes_3d, label_classes, plane, pipename):
         """
         Forward function of data augmentor
         points: [pts_num, c]
@@ -93,6 +94,10 @@ class DataAugmentor:
             label_boxes_3d[:, :6] = label_boxes_3d[:, :6] * random_scale
 
         points = np.concatenate([points, points_i], axis=1)
+
+        # put boxes on planes
+        points, label_boxes_3d = put_boxes_on_planes(label_boxes_3d, points, sem_labels, plane)
+        label_boxes_3d, points, sem_labels, sem_dists = filter_points_boxes_3d(label_boxes_3d, points, sem_labels, sem_dists, enlarge_range=[0.3, 0.5, 0.3])
         return points, sem_labels, sem_dists, label_boxes_3d, label_classes
          
 
@@ -111,8 +116,6 @@ class DataAugmentor:
 
         sampled_gt_label_boxes_3d = np.stack(sampled_gt_label_boxes_3d, axis=0) # [15, 7]
         label_boxes_3d, label_classes, points, sem_labels, sem_dists = box_3d_collision_test(sampled_gt_label_boxes_3d, label_boxes_3d, sampled_gt_label_classes, label_classes, sampled_gt_inside_points, points, sem_labels, sem_dists)
-
-        label_boxes_3d, points, sem_labels, sem_dists = filter_points_boxes_3d(label_boxes_3d, points, sem_labels, sem_dists, enlarge_range=[0.2, 0.2, 0.2])
 
         return points, sem_labels, sem_dists, label_boxes_3d, label_classes, len(label_boxes_3d) 
 

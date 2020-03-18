@@ -93,8 +93,6 @@ setup(
     name='points2voxel',
     version=__version__,
     author='tomztyang',
-    # author_email='sylvain.corlay@gmail.com',
-    # url='https://github.com/pybind/python_example',
     description='voxel generation module',
     long_description='',
     ext_modules=ext_modules,

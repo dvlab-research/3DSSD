@@ -58,7 +58,8 @@ def noise_per_object_v3_(gt_boxes,
 
     # then reshape the gt_boxes to [x, z, y, l, w, h, angle]
     gt_boxes = gt_boxes[:, [0, 2, 1, 3, 5, 4, 6]]
-    gt_boxes[:, 3:6] += float(cfg.TRAIN.AUGMENTATIONS.EXPAND_DIMS_LENGTH)
+    gt_boxes_expand = gt_boxes.copy()
+    gt_boxes_expand[:, 3:6] += float(cfg.TRAIN.AUGMENTATIONS.EXPAND_DIMS_LENGTH)
     points = points[:, [0, 2, 1]]
 
     assert sem_labels is not None, 'only move these points within each groundtruth, not change background'
@@ -67,28 +68,18 @@ def noise_per_object_v3_(gt_boxes,
 
     origin = [0.5, 0.5, 1.0]
     gt_box_corners = center_to_corner_box3d(
-        gt_boxes[:, :3],
-        gt_boxes[:, 3:6],
-        gt_boxes[:, 6],
+        gt_boxes_expand[:, :3],
+        gt_boxes_expand[:, 3:6],
+        gt_boxes_expand[:, 6],
         origin=origin,
         axis=2)
 
-    gt_grots = np.arctan2(gt_boxes[:, 0], gt_boxes[:, 1])
-    grot_lowers = global_random_rot_range[0] - gt_grots
-    grot_uppers = global_random_rot_range[1] - gt_grots
-    global_rot_noises = np.random.uniform(
-        grot_lowers[..., np.newaxis],
-        grot_uppers[..., np.newaxis],
-        size=[num_boxes, num_try])
-
     if not enable_grot:
-        selected_noise = noise_per_box(gt_boxes[:, [0, 1, 3, 4, 6]],
+        selected_noise = noise_per_box(gt_boxes_expand[:, [0, 1, 3, 4, 6]],
                                        valid_mask, loc_noises, rot_noises, scale_noises, scale_3_dims)
     else:
         raise Exception('Not Implementation Fault ----')
-        selected_noise = noise_per_box_v2_(gt_boxes[:, [0, 1, 3, 4, 6]],
-                                           valid_mask, loc_noises,
-                                           rot_noises, global_rot_noises)
+
     loc_transforms = _select_transform(loc_noises, selected_noise)
     rot_transforms = _select_transform(rot_noises, selected_noise)
     scale_transforms = _select_transform(scale_noises, selected_noise)
@@ -373,6 +364,30 @@ def filter_points_boxes_3d(label_boxes_3d, points, sem_labels, dist_labels, enla
 
     label_boxes_3d[:, 3:-1] -= np.array(enlarge_range)
     return label_boxes_3d, points, sem_labels, dist_labels
+
+def put_boxes_on_planes(label_boxes_3d, points, sem_labels, plane):
+    """
+    label_boxes_3d: [gt_num, 7]
+    plane: 4 params, a/b/c/d
+    """
+    a,b,c,d = plane
+    gt_num = label_boxes_3d.shape[0]
+
+    pos_index = np.where(sem_labels >= 1)[0]
+    pos_points = points[pos_index]
+    pos_points_mask = check_inside_points(pos_points, label_boxes_3d) # [pts_num, gt_num]
+    assigned_gt = np.argmax(pos_points_mask, axis=1) # [pts_num]
+
+    # gt_num
+    y_plane = (-d - a * label_boxes_3d[:, 0] - c * label_boxes_3d[:, 2]) / b
+    mv_vector_box = label_boxes_3d[:, 1] - y_plane
+    mv_vector_pts = mv_vector_box[assigned_gt]
+
+    pos_points[:, 1] -= mv_vector_pts
+    label_boxes_3d[:, 1] -= mv_vector_box
+
+    points[pos_index] = pos_points
+    return points, label_boxes_3d
 
 
 @numba.njit
@@ -714,7 +729,6 @@ def box3d_transform_(boxes, loc_transform, rot_transform, scale_transforms, vali
     for i in range(num_box):
         if valid_mask[i]:
             boxes[i, :3] += loc_transform[i]
-            boxes[i, 3:6] -= cfg.TRAIN.AUGMENTATIONS.EXPAND_DIMS_LENGTH
             boxes[i, 3:6] *= scale_transforms[i]
             boxes[i, 6] += rot_transform[i]
 

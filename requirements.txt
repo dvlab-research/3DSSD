@@ -1,7 +1,19 @@
 tensorflow-gpu==1.4.0
+llvmlite==0.28.0
+numba==0.43.0
 numpy
-numba
-mayavi
 tqdm
-json
+nuscenes-devkit
+opencv-python
+h5py
+pybind11
+Cython
+Pillow
+bpython
+pyquaternion
+pyyaml
+msgpack
+msgpack-numpy
+setproctitle
+# mayavi
 

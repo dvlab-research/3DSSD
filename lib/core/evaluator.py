@@ -18,14 +18,15 @@ import dataset.maps_dict as maps_dict
 def parse_args():
     parser = argparse.ArgumentParser(description='Trainer')
     parser.add_argument('--cfg', required=True, help='Config file for training')
-    parser.add_argument('--img_list', default='val', required=True, help='Train/Val/Trainval list')
+    parser.add_argument('--restore_model_path', required=True, help='Restore model path e.g. log/model.ckpt [default: None]')
+    parser.add_argument('--img_list', default='val', help='Train/Val/Trainval list')
     parser.add_argument('--split', default='training', help='Dataset split')
-    parser.add_argument('--restore_model_path', default=None, help='Restore model path e.g. log/model.ckpt [default: None]')
 
     # some evaluation threshold
     parser.add_argument('--cls_threshold', default=0.3, help='Filtering Predictions')
     parser.add_argument('--eval_interval_secs', default=300, help='Sleep after one evaluation loop')
     parser.add_argument('--no_gt', action='store_true', help='Used for test set')
+    args = parser.parse_args()
 
     return args
 

@@ -41,6 +41,7 @@ class kitti_object(object):
         self.calib_dir = os.path.join(self.split_dir, 'calib')
         self.lidar_dir = os.path.join(self.split_dir, 'velodyne')
         self.label_dir = os.path.join(self.split_dir, 'label_2')
+        self.plane_dir = os.path.join(self.split_dir, 'planes')
 
     def __len__(self):
         return self.num_samples
@@ -65,6 +66,10 @@ class kitti_object(object):
         assert(idx<self.num_samples and self.split=='training') 
         label_filename = os.path.join(self.label_dir, '%06d.txt'%(idx))
         return utils.read_label(label_filename)
+
+    def get_planes(self, idx):
+        assert(idx<self.num_samples)
+        return utils.get_road_plane(idx, self.plane_dir)
 
     def get_depth_map(self, idx):
         pass

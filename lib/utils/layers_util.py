@@ -29,7 +29,7 @@ def pointnet_sa_module_msg(xyz, points, npoint, radius_list, nsample_list,
                            bn, 
                            fps_method, fps_start_idx, fps_condition, 
                            former_fps_idx, use_attention, scope,
-                           dilated_group,
+                           dilated_group, vote_ctr=None,
                            debugging=False,
                            epsilon=1e-5):
     ''' PointNet Set Abstraction (SA) module with Multi-Scale Grouping (MSG)
@@ -60,7 +60,9 @@ def pointnet_sa_module_msg(xyz, points, npoint, radius_list, nsample_list,
         else:
             tmp_xyz = xyz
             tmp_points = points
-        if fps_method == 'FS':
+        if vote_ctr is not None:
+            fps_idx = tf.tile(tf.reshape(tf.range(npoint), [1, npoint]), [bs, 1])
+        elif fps_method == 'FS':
             features_for_fps = tf.concat([tmp_xyz, tmp_points], axis=-1)
             features_for_fps_distance = model_util.calc_square_dist(features_for_fps, features_for_fps, norm=False) 
             fps_idx_1 = farthest_point_sample_with_distance(npoint, features_for_fps_distance)
@@ -81,7 +83,10 @@ def pointnet_sa_module_msg(xyz, points, npoint, radius_list, nsample_list,
         if former_fps_idx is not None:
             fps_idx = tf.concat([fps_idx, former_fps_idx], axis=-1) 
 
-        new_xyz = gather_point(xyz, fps_idx)
+        if vote_ctr is not None:
+            new_xyz = gather_point(vote_ctr, fps_idx)
+        else:
+            new_xyz = gather_point(xyz, fps_idx)
 
         # if deformed_xyz is not None, then no attention model
         if use_attention:

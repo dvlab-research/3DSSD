@@ -64,9 +64,9 @@ __C.DATASET.KITTI.SAVE_NUMPY_PATH = 'data/KITTI'
 
 __C.DATASET.NUSCENES = AttrDict()
 
-__C.DATASET.NUSCENE.MAX_NUMBER_OF_VOXELS = 32768
+__C.DATASET.NUSCENES.MAX_NUMBER_OF_VOXELS = 32768
 
-__C.DATASET.NUSCENE.MAX_CUR_SAMPLE_POINTS_NUM = 16384
+__C.DATASET.NUSCENES.MAX_CUR_SAMPLE_POINTS_NUM = 16384
 
 __C.DATASET.NUSCENES.NSWEEPS = 10
 
@@ -209,18 +209,19 @@ __C.MODEL.MAX_TRANSLATE_RANGE = [-3.0, -2.0, -3.0]
 # 11: use_attention: whether using attention in grouping points
 # 12: layer type: [SA layer, VoteLayer]
 # 13: scope, 14: dilated_group
+# 15: deformable-center, /e.g: votenet center
 ################################################# 
 __C.MODEL.NETWORK.ARCHITECTURE = [
     [[0], [0], 4096, [0.2,0.4,0.8], [32,64,128], [[32,32,64], [64,64,128], [64,96,128]],
-     True, 'D-FPS', 0, 'From', -1, False, 'SA_Layer', 'layer1', False], # layer1
-    [[1], [1], 1024, [0.4,0.8,1.6], [64,64,64], [[64,64,128], [128,128,256], [128,128,256]], True, 'FS', 0, 'From', -1, True, 'SA_Layer', 'layer2', False], # layer2
+     True, 'D-FPS', 0, 'From', -1, False, 'SA_Layer', 'layer1', False, -1], # layer1
+    [[1], [1], 1024, [0.4,0.8,1.6], [64,64,64], [[64,64,128], [128,128,256], [128,128,256]], True, 'FS', 0, 'From', -1, True, 'SA_Layer', 'layer2', False, -1], # layer2
     [[2], [2], 256, [1.6,4.8], [64, 128], [[128,128,256], [128,256,256]],
-     True, 'F-FPS', 1024, 'To', -1, True, 'SA_Layer', 'layer3', False], # layer3
+     True, 'F-FPS', 1024, 'To', -1, True, 'SA_Layer', 'layer3', False, -1], # layer3
     [[3], [3], 256, -1, -1, [256],
-     True, -1, -1, -1, -1, -1, 'Vote_Layer', 'Vote3', False], # layer3
-    [[2], [2], 256, [1.6,3.2,4.8], [64,64,128], [[128,128,256], [128,128,256], [128,256,256]], True, 'D-FPS', 1024, 'From', 3, True, 'SA_Layer', 'layer3_frf', False], # layer3_frf
-    [[4], [5], -1, [4.8, 6.4], [32, 32], [[256,256,512], [256,512,1024]], 
-     True, 'D-FPS', 0, 'From', -1, False, 'SA_Layer', 'layer4', False], # layer4
+     True, -1, -1, -1, -1, -1, 'Vote_Layer', 'Vote3', False, -1], # layer3
+    [[2], [2], 256, [1.6,3.2,4.8], [64,64,128], [[128,128,256], [128,128,256], [128,256,256]], True, 'D-FPS', 1024, 'From', 3, True, 'SA_Layer', 'layer3_frf', False, -1], # layer3_frf
+    [[5], [5], -1, [4.8, 6.4], [32, 32], [[256,256,512], [256,512,1024]], 
+     True, 'D-FPS', 0, 'From', -1, False, 'SA_Layer', 'layer4', False, 4], # layer4
 ]
 
 ################################################# 
