@@ -5,6 +5,7 @@ import argparse
 import pprint
 import importlib
 import datetime
+import time
 
 from tensorflow.python import pywrap_tensorflow
 from tensorflow.python.client import device_lib as _device_lib

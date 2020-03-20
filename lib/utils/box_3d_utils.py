@@ -46,6 +46,7 @@ def box_3d_to_anchor(boxes_3d, ortho_rotate=False):
     if ortho_rotate:
         half_pi = np.pi / 2
         box_ry = lib_name.round(ry / half_pi) * half_pi
+    else: box_ry = ry
     cos_ry = lib_name.abs(lib_name.cos(box_ry))
     sin_ry = lib_name.abs(lib_name.sin(box_ry))
 
@@ -53,7 +54,7 @@ def box_3d_to_anchor(boxes_3d, ortho_rotate=False):
     dimy = h
     dimz = w * cos_ry + l * sin_ry
 
-    anchors = concat([x,y,z,dim_x,dim_y,dim_z], axis=-1)
+    anchors = concat([x,y,z,dimx,dimy,dimz], axis=-1)
 
     return anchors
 

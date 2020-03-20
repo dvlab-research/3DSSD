@@ -42,18 +42,19 @@ class SingleStageDetector:
         self.loss_builder = LossBuilder(0)
 
         # head builder
-        heads = []
-        for i in range(cfg.MODEL.NETWORK.HEAD):
-            heads.append(HeadBuilder(self.anchor_builder.anchors_num, i, is_training))
+        self.heads = []
+        head_cfg = cfg.MODEL.NETWORK.FIRST_STAGE.HEAD
+        self.heads.append(HeadBuilder(self.anchor_builder.anchors_num, 0, head_cfg, is_training))
 
         # target assigner
         self.target_assigner = TargetAssigner(0) # first stage
 
         self.vote_loss = False
         # layer builder
+        layer_cfg = cfg.MODEL.NETWORK.FIRST_STAGE.ARCHITECTURE
         layers = []
-        for i in range(cfg.MODEL.NETWORK.ARCHITECTURE):
-            layers.append(LayerBuilder[i, self.is_training]) 
+        for i in range(len(layer_cfg)):
+            layers.append(LayerBuilder(i, self.is_training, layer_cfg)) 
             if layers[-1].layer_type == 'Vote_Layer': self.vote_loss = True
         self.layers = layers
 
@@ -62,7 +63,7 @@ class SingleStageDetector:
         self.__init_dict()
 
     def __init_dict(self):
-        self.outputs = dict()
+        self.output = dict()
         # sampled xyz/feature
         self.output[maps_dict.KEY_OUTPUT_XYZ] = []
         self.output[maps_dict.KEY_OUTPUT_FEATURE] = []
@@ -105,16 +106,16 @@ class SingleStageDetector:
         l0_points = tf.slice(point_cloud, [0,0,3], [-1,-1,-1])
         xyz_list, feature_list, fps_idx_list = [l0_xyz], [l0_points], [None]
         for layer in self.layers:
-            xyz_list, feature_list, fps_idx_list = layer.build_layer(xyz_list, feature_list, fps_idx_list, bn_decay, self.outputs)
+            xyz_list, feature_list, fps_idx_list = layer.build_layer(xyz_list, feature_list, fps_idx_list, bn_decay, self.output)
 
-        pred_cls, pred_reg, base_xyz, base_feature = heads[0].build_layer(xyz_list, feature_list, bn_decay, self.outputs)
+        pred_cls, pred_reg, base_xyz, base_feature = self.heads[0].build_layer(xyz_list, feature_list, bn_decay, self.output)
         return pred_cls, pred_reg, base_xyz, base_feature
 
     def model_forward(self, bn_decay=None):
         points_input_det = self.placeholders[maps_dict.PL_POINTS_INPUT]
 
         # forward the point cloud
-        pred_cls, pred_reg, base_xyz, base_feature = network_forward(points_input_det, bn_decay)
+        pred_cls, pred_reg, base_xyz, base_feature = self.network_forward(points_input_det, bn_decay)
 
         # generate anchors
         anchors = self.anchor_builder.generate_anchors(base_xyz) # [bs, pts_num, 1/cls_num, 7]
@@ -130,7 +131,7 @@ class SingleStageDetector:
         """
         Calculating loss
         """
-        base_xyz = self.outputs[maps_dict.KEY_OUTPUT_XYZ][index]
+        base_xyz = self.output[maps_dict.KEY_OUTPUT_XYZ][index]
 
         gt_boxes_3d = self.placeholders[maps_dict.PL_LABEL_BOXES_3D]
         gt_classes = self.placeholders[maps_dict.PL_LABEL_CLASSES]
@@ -175,7 +176,7 @@ class SingleStageDetector:
 
 
     def test_forward(self, index, anchors):
-        base_xyz = self.outputs[maps_dict.KEY_OUTPUT_XYZ][index]
+        base_xyz = self.output[maps_dict.KEY_OUTPUT_XYZ][index]
 
         pred_cls = self.output[maps_dict.PRED_CLS][index] # [bs, points_num, cls_num + 1/0]
         pred_offset = self.output[maps_dict.PRED_OFFSET][index]

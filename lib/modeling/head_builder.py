@@ -3,14 +3,15 @@ import numpy as np
 
 from core.config import cfg
 import utils.tf_util as tf_util
+import dataset.maps_dict as maps_dict
 
 class HeadBuilder:
-    def __init__(self, anchor_num, head_idx, is_training):
+    def __init__(self, anchor_num, head_idx, head_cfg, is_training):
         self.is_training = is_training
         self.head_idx = head_idx
         self.anchor_num = anchor_num
 
-        cur_head = cfg.MODEL.NETWORK.HEAD[head_idx]
+        cur_head = head_cfg
 
         self.xyz_index = cur_head[0]
         self.feature_index = cur_head[1]
@@ -50,17 +51,17 @@ class HeadBuilder:
 
         bs, points_num, _ = xyz_input.get_shape().as_list()
 
-        with tf.variable_scope(self.scope) as sc:
+        with tf.variable_scope('') as sc:
             for i, channel in enumerate(self.mlp_list):
-                feature_input = tf_util.conv1d(feature_input, channel, 1, padding='VALID', stride=1, bn=self.bn, scope='conv1d_%d'%i, bn_decay=bn_decay, is_training=self.is_training)
+                feature_input = tf_util.conv1d(feature_input, channel, 1, padding='VALID', stride=1, bn=self.bn, scope='l4_fc%d'%(i+1), bn_decay=bn_decay, is_training=self.is_training)
 
             # classification
-            pred_cls = tf_util.conv1d(feature_input, 128, 1, padding='VALID', bn=self.bn, is_training=self.is_training, scope='pred_cls_base', bn_decay=bn_decay)
-            pred_cls = tf_util.conv1d(pred_cls, self.pred_cls_channel, 1, padding='VALID', activation_fn=None, scope='pred_cls')
+            pred_cls = tf_util.conv1d(feature_input, 128, 1, padding='VALID', bn=self.bn, is_training=self.is_training, scope='l4_seg_fc2', bn_decay=bn_decay)
+            pred_cls = tf_util.conv1d(pred_cls, self.pred_cls_channel, 1, padding='VALID', activation_fn=None, scope='l4_rpn_seg')
 
             # recognition
-            pred_reg = tf_util.conv1d(feature_input, 128, 1, padding='VALID', bn=self.bn, is_training=self.is_training, scope='pred_reg_base', bn_decay=bn_decay)
-            pred_reg = tf_util.conv1d(pred_reg, self.pred_reg_base_num * (6 + cfg.MODEL.ANGLE_CLS_NUM * 2), 1, padding='VALID', activation_fn=None, scope='pred_reg')
+            pred_reg = tf_util.conv1d(feature_input, 128, 1, padding='VALID', bn=self.bn, is_training=self.is_training, scope='l4_det_fc2', bn_decay=bn_decay)
+            pred_reg = tf_util.conv1d(pred_reg, self.pred_reg_base_num * (6 + cfg.MODEL.ANGLE_CLS_NUM * 2), 1, padding='VALID', activation_fn=None, scope='l4_rpn_det')
             pred_reg = tf.reshape(pred_reg, [bs, points_num, self.pred_reg_base_num, 6 + cfg.MODEL.ANGLE_CLS_NUM * 2])
 
             if self.head_cfg.PREDICT_ATTRIBUTE_AND_VELOCITY: # velocity and attribute

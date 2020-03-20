@@ -13,7 +13,7 @@ class FeedDictCreater:
 
         # then create feed_dict
         placeholders_list = []
-        for index, model in self.model_list:
+        for model in self.model_list:
             placeholders_list.append(model.placeholders)
         self.placeholders_list = placeholders_list
 

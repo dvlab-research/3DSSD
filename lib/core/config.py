@@ -199,29 +199,40 @@ __C.MODEL.NETWORK.AGGREGATION_SA_FEATURE = False
 __C.MODEL.NETWORK.ONLY_POS_DEFORMABLE_LOSS = False
 __C.MODEL.MAX_TRANSLATE_RANGE = [-3.0, -2.0, -3.0]
 
+# model architecture
+__C.MODEL.NETWORK.FIRST_STAGE = AttrDict()
 ################################################# 
 # for each layer
 # 0: use xyz from which layer, 1: use feature from which layer
-# 2: npoint, 3: radius_list, 4: nsample_list, 5: mlp_list
-# 6: bn, 7: fps_method (F-FPS, D-FPS, FS), 
-# 8: fps_start_idx, 9: from start_idx / to start_idx
-# 10: former_fps_idx: (fps_idx from which layer)
-# 11: use_attention: whether using attention in grouping points
-# 12: layer type: [SA layer, VoteLayer]
-# 13: scope, 14: dilated_group
-# 15: deformable-center, /e.g: votenet center
+# 2: radius_list, 3: nsample_list, 4: mlp_list 5: bn, 
+# 6: fps_sample_range_list 7: fps_method_list (F-FPS, D-FPS, FS) 8: fps_npoint_list 
+# 9: former_fps_idx: (fps_idx from which layer)
+# 10: use_attention: whether using attention in grouping points
+# 11: layer type: [SA layer, VoteLayer]
+# 12: scope, 
+# 13: dilated_group
+# 14: deformable-center, /e.g: votenet center
+# 15: aggregation channel
 ################################################# 
-__C.MODEL.NETWORK.ARCHITECTURE = [
-    [[0], [0], 4096, [0.2,0.4,0.8], [32,64,128], [[32,32,64], [64,64,128], [64,96,128]],
-     True, 'D-FPS', 0, 'From', -1, False, 'SA_Layer', 'layer1', False, -1], # layer1
-    [[1], [1], 1024, [0.4,0.8,1.6], [64,64,64], [[64,64,128], [128,128,256], [128,128,256]], True, 'FS', 0, 'From', -1, True, 'SA_Layer', 'layer2', False, -1], # layer2
-    [[2], [2], 256, [1.6,4.8], [64, 128], [[128,128,256], [128,256,256]],
-     True, 'F-FPS', 1024, 'To', -1, True, 'SA_Layer', 'layer3', False, -1], # layer3
-    [[3], [3], 256, -1, -1, [256],
-     True, -1, -1, -1, -1, -1, 'Vote_Layer', 'Vote3', False, -1], # layer3
-    [[2], [2], 256, [1.6,3.2,4.8], [64,64,128], [[128,128,256], [128,128,256], [128,256,256]], True, 'D-FPS', 1024, 'From', 3, True, 'SA_Layer', 'layer3_frf', False, -1], # layer3_frf
-    [[5], [5], -1, [4.8, 6.4], [32, 32], [[256,256,512], [256,512,1024]], 
-     True, 'D-FPS', 0, 'From', -1, False, 'SA_Layer', 'layer4', False, 4], # layer4
+__C.MODEL.NETWORK.FIRST_STAGE.ARCHITECTURE = [
+    [[0], [0], [0.2,0.4,0.8], [32,64,128], [[32,32,64], [64,64,128], [64,96,128]], True,
+     [-1], ['D-FPS'], [4096], 
+     -1, False, 'SA_Layer', 'layer1', False, -1, 128], # layer1
+    [[1], [1], [0.4,0.8,1.6], [64,64,64], [[64,64,128], [128,128,256], [128,128,256]], True, 
+     [-1], ['FS'], [1024], 
+     -1, True, 'SA_Layer', 'layer2', False, -1, 256], # layer2
+    [[2], [2], [1.6,4.8], [64, 128], [[128,128,256], [128,256,256]], True,
+     [1024, -1], ['F-FPS', 'D-FPS'], [256, 0], 
+     -1, True, 'SA_Layer', 'layer3', False, -1, 256], # layer3
+    [[3], [3], -1, -1, [256], True,
+     [-1], [-1], [-1], 
+     -1, -1, 'Vote_Layer', 'layer3_vote', False, -1, -1], # layer3-vote
+    [[2], [2], [1.6,3.2,4.8], [64,64,128], [[128,128,256], [128,128,256], [128,256,256]], True, 
+     [1024, -1], ['F-FPS', 'D-FPS'], [0, 256], 
+     3, True, 'SA_Layer', 'layer3_frf', False, -1, 256], # layer3_frf
+    [[5], [5], [4.8, 6.4], [32, 32], [[256,256,512], [256,512,1024]], True, 
+     [-1], ['D-FPS'], [256], 
+     -1, False, 'SA_Layer', 'layer4', False, 4, 512], # layer4
 ]
 
 ################################################# 
@@ -231,7 +242,35 @@ __C.MODEL.NETWORK.ARCHITECTURE = [
 # 3: bn
 # 4: scope
 ################################################# 
-__C.MODEL.NETWORK.HEAD = [[[6], [6], [128,], True, 'detection_head']] 
+__C.MODEL.NETWORK.FIRST_STAGE.HEAD = [[6], [6], [128,], True, 'detection_head']
+
+
+# model architecture for second stage
+__C.MODEL.NETWORK.SECOND_STAGE = AttrDict()
+################################################# 
+# for each layer
+# 0: use xyz from which layer, 1: use feature from which layer
+# 2: radius_list, 3: nsample_list, 4: mlp_list 5: bn, 
+# 6: fps_end_idx_list 7: fps_method_list (F-FPS, D-FPS, FS) 8: fps_npoint_list 
+# 9: former_fps_idx: (fps_idx from which layer)
+# 10: use_attention: whether using attention in grouping points
+# 11: layer type: [SA layer, VoteLayer]
+# 12: scope, 
+# 13: dilated_group
+# 14: deformable-center, /e.g: votenet center
+# 15: aggregation channel
+################################################# 
+__C.MODEL.NETWORK.SECOND_STAGE.ARCHITECTURE = [
+]
+
+################################################# 
+# for each layer
+# 0: use xyz from which layer, 1: use feature from which layer
+# 2: mlp_list
+# 3: bn
+# 4: scope
+################################################# 
+__C.MODEL.NETWORK.SECOND_STAGE.HEAD = [[6], [6], [128,], True, 'detection_head']
 
 
 # RPN

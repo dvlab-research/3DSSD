@@ -313,9 +313,9 @@ class KittiDataset:
     # Evaluation
     def set_evaluation_tensor(self, model):
         # get prediction results, bs = 1
-        pred_bbox_3d = tf.squeeze(model.output[maps_dict.PRED_3D_BBOX][0], axis=0)
-        pred_cls_score = tf.squeeze(model.output[maps_dict.PRED_3D_SCORE][0], axis=0)
-        pred_cls_category = tf.squeeze(model.output[maps_dict.PRED_3D_CLS_CATEGORY][0], axis=0)
+        pred_bbox_3d = tf.squeeze(model.output[maps_dict.PRED_3D_BBOX][-1], axis=0)
+        pred_cls_score = tf.squeeze(model.output[maps_dict.PRED_3D_SCORE][-1], axis=0)
+        pred_cls_category = tf.squeeze(model.output[maps_dict.PRED_3D_CLS_CATEGORY][-1], axis=0)
         pred_list = [pred_bbox_3d, pred_cls_score, pred_cls_category]
 
         return pred_list

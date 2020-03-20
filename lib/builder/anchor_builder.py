@@ -30,9 +30,9 @@ class Anchors:
             self.anchor_cfg = cfg.MODEL.SECOND_STAGE
 
         generate_function = {
-            'Dist-Anchor': generate_anchors,
-            'Log-Anchor': generate_anchors,
-            'Dist-Anchor-free': generate_anchors_free,
+            'Dist-Anchor': self.generate_anchors,
+            'Log-Anchor': self.generate_anchors,
+            'Dist-Anchor-free': self.generate_anchors_free,
         }
         self.generate = generate_function[self.anchor_cfg.REGRESSION_METHOD]
 

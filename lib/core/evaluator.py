@@ -4,7 +4,7 @@ import numpy as np
 import argparse
 import pprint
 import importlib
-import datetime
+import time
 
 from tensorflow.python import pywrap_tensorflow
 from tensorflow.python.client import device_lib as _device_lib
@@ -38,13 +38,12 @@ class evaluator:
         self.log_dir = cfg.MODEL.PATH.EVALUATION_DIR
         self.is_training = False
 
-        self.cls_thresh = args.cls_threshold
+        self.cls_thresh = float(args.cls_threshold)
         self.eval_interval_secs = args.eval_interval_secs
         self.restore_model_path = args.restore_model_path
 
         # save dir
-        datetime_str = str(datetime.datetime.now())
-        self.log_dir = os.path.join(self.log_dir, datetime_str)
+        self.log_dir = os.path.join(self.log_dir, self.restore_model_path)
         if not os.path.exists(self.log_dir): os.makedirs(self.log_dir)
         self.log_file = open(os.path.join(self.log_dir, 'log_train.txt'), 'w')
         self.log_file.write(str(args)+'\n')
@@ -74,7 +73,7 @@ class evaluator:
     def _build_model_list(self):
         model_list = []
         model = self.model_func(self.batch_size, self.is_training)
-        model.model_forward(self.bn_decay)
+        model.model_forward()
         model_list.append(model)
 
         # get prediction results, bs = 1

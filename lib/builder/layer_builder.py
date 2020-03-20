@@ -9,29 +9,32 @@ from utils.layers_util import *
 import dataset.maps_dict as maps_dict
 
 class LayerBuilder:
-    def __init__(self, layer_idx, is_training):
+    def __init__(self, layer_idx, is_training, layer_cfg):
         self.layer_idx = layer_idx
         self.is_training = is_training
 
-        layer_architecture = cfg.MODEL.NETWORK.ARCHITECTURE
-        self.layer_architecture = layer_architecture[self.layer_idx]
+        self.layer_architecture = layer_cfg[self.layer_idx]
 
         self.xyz_index = self.layer_architecture[0]
         self.feature_index = self.layer_architecture[1]
-        self.npoint = self.layer_architecture[2]
-        self.radius_list = self.layer_architecture[3]
-        self.nsample_list = self.layer_architecture[4]
-        self.mlp_list = self.layer_architecture[5]
-        self.bn = self.layer_architecture[6]
-        self.fps = self.layer_architecture[7]
-        self.fps_start_idx = self.layer_architecture[8]
-        self.fps_condition = self.layer_architecture[9]
-        self.former_fps_idx = self.layer_architecture[10]
-        self.use_attention = self.layer_architecture[11]
-        self.layer_type = self.layer_architecture[12]
-        self.scope = self.layer_architecture[13] 
-        self.dilated_group = self.layer_architecture[14]
-        self.vote_ctr_index = self.layer_architecture[15]
+        self.radius_list = self.layer_architecture[2]
+        self.nsample_list = self.layer_architecture[3]
+        self.mlp_list = self.layer_architecture[4]
+        self.bn = self.layer_architecture[5]
+
+        self.fps_sample_range_list = self.layer_architecture[6]
+        self.fps_method_list = self.layer_architecture[7]
+        self.npoint_list = self.layer_architecture[8]
+        assert len(self.fps_sample_range_list) == len(self.fps_method_list)
+        assert len(self.fps_method_list) == len(self.npoint_list)
+
+        self.former_fps_idx = self.layer_architecture[9]
+        self.use_attention = self.layer_architecture[10]
+        self.layer_type = self.layer_architecture[11]
+        self.scope = self.layer_architecture[12] 
+        self.dilated_group = self.layer_architecture[13]
+        self.vote_ctr_index = self.layer_architecture[14]
+        self.aggregation_channel = self.layer_architecture[15]
 
         if self.layer_type in ['SA_Layer', 'Vote_Layer']:
             assert len(self.xyz_index) == 1
@@ -61,7 +64,11 @@ class LayerBuilder:
         else: vote_ctr = None
 
         if self.layer_type == 'SA_Layer':
-            new_xyz, new_points, new_fps_idx = pointnet_sa_module_msg(xyz_input[0], feature_input[0], self.npoint, self.radius_list, self.nsample_list, self.mlp_list, self.is_training, bn_decay, self.bn, self.fps, self.fps_start_idx, self.fps_condition, self.former_fps_idx, self.use_attention, self.scope, self.dilated_group, vote_ctr)
+            new_xyz, new_points, new_fps_idx = pointnet_sa_module_msg(xyz_input[0], feature_input[0], self.radius_list, self.nsample_list, 
+                                                                      self.mlp_list, self.is_training, bn_decay, self.bn, 
+                                                                      self.fps_sample_range_list, self.fps_method_list, self.npoint_list, 
+                                                                      former_fps_idx, self.use_attention, self.scope, 
+                                                                      self.dilated_group, vote_ctr, self.aggregation_channel)
             xyz_list.append(new_xyz)
             feature_list.append(new_points)
             fps_idx_list.append(new_fps_idx)

@@ -498,14 +498,14 @@ class NuScenesDataset:
     # Evaluation
     def set_evaluation_tensor(self, model):
         # get prediction results, bs = 1
-        pred_bbox_3d = tf.squeeze(model.output[maps_dict.PRED_3D_BBOX][0], axis=0)
-        pred_cls_score = tf.squeeze(model.output[maps_dict.PRED_3D_SCORE][0], axis=0)
-        pred_cls_category = tf.squeeze(model.output[maps_dict.PRED_3D_CLS_CATEGORY][0], axis=0)
+        pred_bbox_3d = tf.squeeze(model.output[maps_dict.PRED_3D_BBOX][-1], axis=0)
+        pred_cls_score = tf.squeeze(model.output[maps_dict.PRED_3D_SCORE][-1], axis=0)
+        pred_cls_category = tf.squeeze(model.output[maps_dict.PRED_3D_CLS_CATEGORY][-1], axis=0)
         pred_list = [pred_bbox_3d, pred_cls_score, pred_cls_category]
 
         if len(model.output[maps_dict.PRED_3D_ATTRIBUTE]) > 0:
-            pred_attribute = tf.squeeze(model.output[maps_dict.PRED_3D_ATTRIBUTE], axis=0)
-            pred_velocity = tf.squeeze(model.output[maps_dict.PRED_3D_VELOCITY], axis=0)
+            pred_attribute = tf.squeeze(model.output[maps_dict.PRED_3D_ATTRIBUTE][-1], axis=0)
+            pred_velocity = tf.squeeze(model.output[maps_dict.PRED_3D_VELOCITY][-1], axis=0)
             pred_list.extend([pred_attribute, pred_velocity])
         return pred_list
 

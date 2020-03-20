@@ -112,7 +112,7 @@ def conv1d(inputs,
                                   biases_initializer)
         outputs = tf.nn.bias_add(outputs, biases, data_format=data_format)
 
-    if bn and cfg.MODEL.USE_GN: # using GN
+    if bn and cfg.MODEL.NETWORK.USE_GN: # using GN
       outputs = group_norm_template(outputs, is_training, scope='gn')
     elif bn:
       outputs = batch_norm_for_conv1d(outputs, is_training,
@@ -180,7 +180,7 @@ def conv2d(inputs,
                              [1, stride_h, stride_w, 1],
                              padding=padding,
                              data_format=data_format)
-      if biases:
+      if biases and (not bn):
         if focal_loss:
           biases_initializer = tf.constant_initializer(-np.log((1 - 0.01) / 0.01))
         else:
@@ -189,7 +189,7 @@ def conv2d(inputs,
                                   biases_initializer)
         outputs = tf.nn.bias_add(outputs, biases, data_format=data_format)
 
-      if bn and cfg.MODEL.USE_GN: # using GN
+      if bn and cfg.MODEL.NETWORK.USE_GN: # using GN
         outputs = group_norm_template(outputs, is_training, scope='gn')
       elif bn:
         outputs = batch_norm_for_conv2d(outputs, is_training,
@@ -259,7 +259,7 @@ def conv3d(inputs,
                                   biases_initializer)
         outputs = tf.nn.bias_add(outputs, biases, data_format=data_format)
     
-    if bn and cfg.MODEL.USE_GN: # using GN
+    if bn and cfg.MODEL.NETWORK.USE_GN: # using GN
       outputs = group_norm_template(outputs, is_training, scope='gn')
     elif bn:
       outputs = batch_norm_for_conv3d(outputs, is_training,
@@ -308,7 +308,7 @@ def fully_connected(inputs,
                                biases_initializer)
       outputs = tf.nn.bias_add(outputs, biases)
      
-    if bn and cfg.MODEL.USE_GN: # using GN
+    if bn and cfg.MODEL.NETWORK.USE_GN: # using GN
       outputs = group_norm_template(outputs, is_training, scope='gn')
     elif bn:
       outputs = batch_norm_for_fc(outputs, is_training, bn_decay, 'bn')

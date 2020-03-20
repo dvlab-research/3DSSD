@@ -1,8 +1,11 @@
 import numpy as np
 import tensorflow as tf
 
+from core.config import cfg
 from utils.anchors_util import project_to_bev
 from utils.box_3d_utils import box_3d_to_anchor
+
+import dataset.maps_dict as maps_dict
 
 class PostProcessor:
     def __init__(self, stage):
@@ -52,7 +55,7 @@ class PostProcessor:
                
                 cur_pred_3d_bbox_list.append(tf.gather(cur_pred_anchors_3d, nms_index)) 
                 cur_pred_3d_cls_score_list.append(tf.gather(cur_cls_score, nms_index))
-                cur_pred_3d_cls_cat_list.append(tf.cast(tf.ones_like(nms_index), tf.int32) * index)
+                cur_pred_3d_cls_cat_list.append(tf.cast(tf.ones_like(nms_index), tf.int32) * i)
 
                 if pred_attribute is not None:
                     cur_pred_attribute_list.append(tf.gather(pred_attribute[batch_idx, :, reg_i, :], nms_index))
