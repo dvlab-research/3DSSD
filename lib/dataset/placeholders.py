@@ -23,12 +23,12 @@ class PlaceHolders:
 
     def get_placeholders_kitti(self):
         with tf.variable_scope('points_input'):
-            self._add_placeholder(tf.float32, [self.batch_size, None, 4], maps_dict.PL_POINTS_INPUT)
+            self._add_placeholder(tf.float32, [self.batch_size, cfg.MODEL.POINTS_NUM_FOR_TRAINING, 4], maps_dict.PL_POINTS_INPUT)
 
         with tf.variable_scope('pl_labels'):
             self._add_placeholder(tf.float32, [self.batch_size, None, 7],
                                   maps_dict.PL_LABEL_BOXES_3D)
-            self._add_placeholder(tf.float32, [self.batch_size, None],
+            self._add_placeholder(tf.int32, [self.batch_size, None],
                                   maps_dict.PL_LABEL_CLASSES)
             self._add_placeholder(tf.int32, [self.batch_size, None], maps_dict.PL_ANGLE_CLS)
             self._add_placeholder(tf.float32, [self.batch_size, None], maps_dict.PL_ANGLE_RESIDUAL)
@@ -45,7 +45,7 @@ class PlaceHolders:
         with tf.variable_scope('pl_labels'):
             self._add_placeholder(tf.float32, [self.batch_size, None, 7],
                                   maps_dict.PL_LABEL_BOXES_3D)
-            self._add_placeholder(tf.float32, [self.batch_size, None],
+            self._add_placeholder(tf.int32, [self.batch_size, None],
                                   maps_dict.PL_LABEL_CLASSES)
             self._add_placeholder(tf.int32, [self.batch_size, None],
                                   maps_dict.PL_LABEL_ATTRIBUTES)

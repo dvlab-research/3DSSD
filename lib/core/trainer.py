@@ -59,10 +59,15 @@ class trainer:
         self.dataset_iter = self.dataset.load_batch(self.batch_size * self.gpu_num)
         self._log_string('**** Dataset length is %d ****'%len(self.dataset))
 
-        # solver
-        self.global_step = tf.contrib.framework.get_or_create_global_step()
-        self.bn_decay = get_bn_decay(self.global_step)
-        self.learning_rate = get_learning_rate(self.global_step)
+        # optimizer
+        with tf.device('/cpu:0'):
+            self.global_step = tf.contrib.framework.get_or_create_global_step()
+            self.bn_decay = get_bn_decay(self.global_step)
+            self.learning_rate = get_learning_rate(self.global_step)
+            if cfg.SOLVER.TYPE == 'SGD':
+                self.optimizer = tf.train.MomentumOptimizer(self.learning_rate, momentum=cfg.SOLVER.MOMENTUM)
+            elif cfg.SOLVER.TYPE == 'Adam':
+                self.optimizer = tf.train.AdamOptimizer(self.learning_rate)
 
         # models
         self.model_func = choose_model() 
@@ -72,22 +77,26 @@ class trainer:
         # feeddict
         self.feeddict_producer = FeedDictCreater(self.dataset_iter, self.model_list, self.batch_size)
 
-        # optimizer
-        if cfg.SOLVER.TYPE == 'SGD':
-            self.optimizer = tf.train.MomentumOptimizer(self.learning_rate, momentum=cfg.SOLVER.MOMENTUM)
-        elif cfg.SOLVER.TYPE == 'Adam':
-            self.optimizer = tf.train.AdamOptimizer(self.learning_rate)
         with tf.device('/gpu:0'):
             self.grads = average_gradients(self.tower_grads)
             self.update_op = [self.optimizer.apply_gradients(zip(self.grads, self.params), global_step=self.global_step)]
         self.update_op.extend(self.extra_update_ops)
-        self.train_op = tf.group(self.update_op)
+        self.train_op = tf.group(*self.update_op)
         
         # tensorflow training ops 
-        self.sess = tf.Session()
+        gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=1, allow_growth=True)
+        config = tf.ConfigProto(
+            gpu_options=gpu_options,
+            device_count={
+                "GPU": self.gpu_num,
+            },
+            allow_soft_placement=True,
+        )
+        self.sess = tf.Session(config=config)
+
         self.saver = tf.train.Saver()
         self.merged = tf.summary.merge_all()
-        self.train_writer = tf.summary.FileWriter(os.path.join(self.log_dir, 'train'), sess.graph)
+        self.train_writer = tf.summary.FileWriter(os.path.join(self.log_dir, 'train'), self.sess.graph)
    
         # initialize model
         self._initialize_model()
@@ -162,6 +171,7 @@ class trainer:
         
 
     def train(self):
+        last_time = time.time()
         for step in range(self.max_iteration):
             if step % self.checkpoint_interval == 0: # save model
                 global_step_np = tf.train.global_step(self.sess, self.global_step) 
@@ -180,7 +190,7 @@ class trainer:
                 time_elapsed = cur_time - last_time
                 last_time = cur_time
 
-                _, train_op_loss, summary_out, *losses_list_np = sess.run([self.train_op, self.total_loss_gpu, self.merged] + self.losses_list, feed_dict=feed_dict)
+                _, train_op_loss, summary_out, *losses_list_np = self.sess.run([self.train_op, self.total_loss_gpu, self.merged] + self.losses_list, feed_dict=feed_dict)
 
                 self._log_string('**** STEP %08d ****'%step)
                 self._log_string('Step {}, Total Loss {:0.3f}, Time Elapsed {:0.3f} s'.format(
@@ -189,7 +199,7 @@ class trainer:
                     self._log_string('Loss: {}: {:0.3f}'.format(loss_name.name, loss))
                 self.train_writer.add_summary(summary_out, step)
             else:
-                sess.run(self.train_op, feed_dict=feed_dict)
+                self.sess.run(self.train_op, feed_dict=feed_dict)
         
 
 if __name__ == '__main__':

@@ -25,6 +25,40 @@ def iou_guided_nms(iou_matrix, pred_boxes_3d, pred_scores, pred_iou_3d, iou_thre
 
 
 
+def vote_targets_np(vote_base, gt_boxes_3d):
+    """ Generating vote_targets for each vote_base point
+    vote_base: [bs, points_num, 3]
+    gt_boxes_3d: [bs, gt_num, 7]
+
+    Return:
+        vote_mask: [bs, points_num]
+        vote_target: [bs, points_num, 3]
+    """
+    bs, points_num, _ = vote_base.shape
+    vote_mask = np.zeros([bs, points_num], dtype=np.float32)
+    vote_target = np.zeros([bs, points_num, 3], dtype=np.float32)
+
+    for i in range(bs):
+        cur_vote_base = vote_base[i]
+        cur_gt_boxes_3d = gt_boxes_3d[i]
+
+        filter_idx = np.where(np.any(np.not_equal(cur_gt_boxes_3d, 0), axis=-1))[0]
+        cur_gt_boxes_3d = cur_gt_boxes_3d[filter_idx]
+
+        cur_points_mask = check_inside_points(cur_vote_base, cur_gt_boxes_3d) # [pts_num, gt_num]
+
+        cur_vote_mask = np.max(cur_points_mask, axis=1).astype(np.float32)
+        vote_mask[i] = cur_vote_mask
+
+        cur_vote_target_idx = np.argmax(cur_points_mask, axis=1) # [pts_num]
+        cur_vote_target = cur_gt_boxes_3d[cur_vote_target_idx]
+        cur_vote_target[:, 1] = cur_vote_target[:, 1] - cur_vote_target[:, 4] / 2.
+        vote_target[i] = cur_vote_target[:, :3]
+
+    return vote_mask, vote_target
+
+
+
 def iou_assign_targets_anchors_np(batch_iou_matrix, batch_points, batch_anchors_3d, batch_gt_boxes_3d, batch_gt_labels, minibatch_size, positive_rate, pos_iou, neg_iou, effective_sample_range):
     """ IoU assign targets function
     batch_iou_matrix: [bs, points_num, cls_num, gt_num]

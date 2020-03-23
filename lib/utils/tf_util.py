@@ -180,7 +180,7 @@ def conv2d(inputs,
                              [1, stride_h, stride_w, 1],
                              padding=padding,
                              data_format=data_format)
-      if biases and (not bn):
+      if biases:
         if focal_loss:
           biases_initializer = tf.constant_initializer(-np.log((1 - 0.01) / 0.01))
         else:
@@ -440,6 +440,7 @@ def batch_norm_template(inputs, is_training, scope, moments_dims_unused, bn_deca
                                       center=True, scale=True,
                                       is_training=is_training, decay=bn_decay,updates_collections=None,
                                       scope=scope,
+                                      fused=False,
                                       data_format=data_format)
 
 

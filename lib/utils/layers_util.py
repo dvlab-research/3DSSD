@@ -13,11 +13,10 @@ def vote_layer(xyz, points, mlp_list, is_training, bn_decay, bn, scope):
     """
     Voting layer
     """
-    with tf.variable_scope('') as sc:
-        # for i, channel in enumerate(mlp_list):
-        #     points = tf_util.conv1d(points, channel, 1, padding='VALID', stride=1, bn=bn, scope='vote_layer_%d'%i, bn_decay=bn_decay, is_training=is_training)
-        # ctr_offsets = tf_util.conv1d(points, 3, 1, padding='VALID', stride=1, bn=False, activation_fn=None, scope='vote_offsets')
-        ctr_offsets = tf_util.conv1d(points, 3, 1, padding='VALID', stride=1, bn=False, activation_fn=None, scope='deformable_offset')
+    with tf.variable_scope(scope) as sc:
+        for i, channel in enumerate(mlp_list):
+            points = tf_util.conv1d(points, channel, 1, padding='VALID', stride=1, bn=bn, scope='vote_layer_%d'%i, bn_decay=bn_decay, is_training=is_training)
+        ctr_offsets = tf_util.conv1d(points, 3, 1, padding='VALID', stride=1, bn=False, activation_fn=None, scope='vote_offsets')
 
         min_offset = tf.reshape(cfg.MODEL.MAX_TRANSLATE_RANGE, [1, 1, 3])
         ctr_offsets = tf.minimum(tf.maximum(ctr_offsets, min_offset), -min_offset)
@@ -53,8 +52,9 @@ def pointnet_sa_module_msg(xyz, points, radius_list, nsample_list,
         for fps_sample_range, fps_method, npoint in zip(fps_sample_range_list, fps_method_list, npoint_list):
             tmp_xyz = tf.slice(xyz, [0, last_fps_end_index, 0], [-1, fps_sample_range, -1]) 
             tmp_points = tf.slice(points, [0, last_fps_end_index, 0], [-1, fps_sample_range, -1])
-            last_fps_end_index += fps_sample_range 
-            if npoint == 0: continue
+            if npoint == 0: 
+                last_fps_end_index += fps_sample_range 
+                continue
             if vote_ctr is not None:
                 npoint = vote_ctr.get_shape().as_list()[1]
                 fps_idx = tf.tile(tf.reshape(tf.range(npoint), [1, npoint]), [bs, 1])
@@ -75,6 +75,7 @@ def pointnet_sa_module_msg(xyz, points, radius_list, nsample_list,
 
             fps_idx = fps_idx + last_fps_end_index 
             cur_fps_idx_list.append(fps_idx)
+            last_fps_end_index += fps_sample_range 
         fps_idx = tf.concat(cur_fps_idx_list, axis=-1)
 
         if former_fps_idx is not None:
@@ -148,11 +149,9 @@ def pointnet_sa_module_msg(xyz, points, radius_list, nsample_list,
             new_points *= tf.expand_dims(pts_cnt_fmask, axis=-1)
             new_points_list.append(new_points)
         new_points_concat = tf.concat(new_points_list, axis=-1)
-    if cfg.MODEL.NETWORK.AGGREGATION_SA_FEATURE:
-        layer_dict = {
-            'layer1': 'ensemble_l1', 'layer2': 'ensemble_l2', 'layer3': 'ensemble_l3', 'layer3_frf': 'ensemble_l3_frf', 'layer4': 'ensemble_l4',
-        }
-        new_points_concat = tf_util.conv1d(new_points_concat, aggregation_channel, 1, padding='VALID', bn=bn, is_training=is_training, scope=layer_dict[scope], bn_decay=bn_decay) 
+        if cfg.MODEL.NETWORK.AGGREGATION_SA_FEATURE:
+            new_points_concat = tf_util.conv1d(new_points_concat, aggregation_channel, 1, padding='VALID', bn=bn, is_training=is_training, scope='ensemble', bn_decay=bn_decay) 
+
     return new_xyz, new_points_concat, fps_idx
 
 

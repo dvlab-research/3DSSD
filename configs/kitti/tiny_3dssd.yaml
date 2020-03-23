@@ -19,14 +19,18 @@ TRAIN:
       NUMBER: (15, )
   CONFIG:
     BATCH_SIZE: 4
-    GPU_NUM: 4
+    GPU_NUM: 2
     MAX_ITERATIONS: 56490
     CHECKPOINT_INTERVAL: 807
     SUMMARY_INTERVAL: 10
+SOLVER:
+  TYPE: 'Adam'
+  BASE_LR: 0.002
+  STEPS: [32280, 40350, 48420]
 TEST:
   WITH_GT: True
 DATA_LOADER:
-  NUM_THREADS: 16 # GPU_NUM x BATCH_SIZE
+  NUM_THREADS: 8 # GPU_NUM x BATCH_SIZE
 MODEL:
   POINTS_NUM_FOR_TRAINING: 16384
   TYPE: 'SingleStage'
@@ -39,22 +43,22 @@ MODEL:
     AGGREGATION_SA_FEATURE: True
     FIRST_STAGE:
       ARCHITECTURE: [
-        [[0], [0], [0.2,0.4,0.8], [32,64,128], [[32,32,64], [64,64,128], [64,96,128]], True,
+        [[0], [0], [0.4, 0.8], [32,32], [[32,32,64], [64,64,128]], True,
          [-1], ['D-FPS'], [4096],
-         -1, False, 'SA_Layer', 'layer1', False, -1, 128], # layer1
-        [[1], [1], [0.4,0.8,1.6], [64,64,64], [[64,64,128], [128,128,256], [128,128,256]], True,
+         -1, False, 'SA_Layer', 'layer1', True, -1, 128], # layer1
+        [[1], [1], [0.8,1.6], [32,32], [[128,128,256], [128,128,256]], True,
          [-1], ['FS'], [1024],
          -1, True, 'SA_Layer', 'layer2', False, -1, 256], # layer2
-        [[2], [2], [1.6,4.8], [64, 128], [[128,128,256], [128,256,256]], True,
+        [[2], [2], [3.2,4.8], [32, 32], [[128,128,256], [128,128,256]], True,
          [1024, -1], ['F-FPS', 'D-FPS'], [256, 0],
          -1, True, 'SA_Layer', 'layer3', False, -1, 256], # layer3
-        [[3], [3], -1, -1, [256], True,
+        [[3], [3], -1, -1, [], True,
          [-1], [-1], [-1],
          -1, -1, 'Vote_Layer', 'layer3_vote', False, -1, -1], # layer3-vote
-        [[2], [2], [1.6,3.2,4.8], [64,64,128], [[128,128,256], [128,128,256], [128,256,256]], True,
+        [[2], [2], [3.2,4.8], [32, 32], [[128,128,256], [128,128,256]], True,
          [1024, -1], ['F-FPS', 'D-FPS'], [0, 256],
          3, True, 'SA_Layer', 'layer3_frf', False, -1, 256], # layer3_frf
-        [[5], [5], [4.8, 6.4], [32, 32], [[256,256,512], [256,512,1024]], True,
+        [[5], [5], [4.8], [32], [[256,256,512]], True,
          [-1], ['D-FPS'], [256],
          -1, False, 'SA_Layer', 'layer4', False, 4, 512], # layer4
       ]
@@ -70,9 +74,3 @@ MODEL:
     CLASSIFICATION_LOSS:
       TYPE: 'Center-ness'
       SOFTMAX_SAMPLE_RANGE: 10.0
-SOLVER:
-  TYPE: 'Adam'
-  BASE_LR: 0.002
-  STEPS: [32280, 40350, 48420]
-
-    

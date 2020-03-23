@@ -118,7 +118,7 @@ class SingleStageDetector:
         pred_cls, pred_reg, base_xyz, base_feature = self.network_forward(points_input_det, bn_decay)
 
         # generate anchors
-        anchors = self.anchor_builder.generate_anchors(base_xyz) # [bs, pts_num, 1/cls_num, 7]
+        anchors = self.anchor_builder.generate(base_xyz) # [bs, pts_num, 1/cls_num, 7]
         self.output[maps_dict.KEY_ANCHORS_3D].append(anchors)
 
         if self.is_training: # training mode
@@ -132,6 +132,9 @@ class SingleStageDetector:
         Calculating loss
         """
         base_xyz = self.output[maps_dict.KEY_OUTPUT_XYZ][index]
+        pred_offset = self.output[maps_dict.PRED_OFFSET][index]
+        pred_angle_cls = self.output[maps_dict.PRED_ANGLE_CLS][index]
+        pred_angle_res = self.output[maps_dict.PRED_ANGLE_RES][index]
 
         gt_boxes_3d = self.placeholders[maps_dict.PL_LABEL_BOXES_3D]
         gt_classes = self.placeholders[maps_dict.PL_LABEL_CLASSES]

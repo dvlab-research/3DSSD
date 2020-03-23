@@ -34,18 +34,18 @@ class EncoderDecoder:
         self.encoder = self.encoder_dict[self.regression_method]
         self.decoder = self.decoder_dict[self.regression_method]
 
-    def encode(self, center_xyz, gt_boxes_3d, batch_anchors_3d):
+    def encode(self, center_xyz, gt_offset, batch_anchors_3d):
         """
         center_xyz: [bs, points_num, 3], points location
-        gt_boxes_3d: [bs, points_num, cls_num, 7]
+        gt_offset: [bs, points_num, cls_num, 7]
         batch_anchors_3d: [bs, points_num, cls_num, 6]
         """
         bs, points_num, cls_num, _ = gt_offset.get_shape().as_list()
         gt_offset = gt_offset[:, :, :, :-1]
         gt_offset = tf.reshape(gt_offset, [bs, points_num * cls_num, 6])
-        batch_anchors_3d = tf.reshape(batch_anchors_3d, [bs, points_num * cls_num, 7])
+        batch_anchors_3d = tf.reshape(batch_anchors_3d, [bs, points_num * cls_num, -1])
 
-        gt_ctr, gt_size = tf.slice(gt_offset, num_or_size_splits=2, axis=-1)
+        gt_ctr, gt_size = tf.split(gt_offset, num_or_size_splits=2, axis=-1)
         if self.regression_method == 'Dist-Anchor-free':
             encoded_ctr, encoded_offset = self.encoder(gt_ctr, gt_size, center_xyz)
         else:
@@ -71,7 +71,7 @@ class EncoderDecoder:
         det_offset = tf.reshape(det_offset, [bs, points_num * cls_num, 6])
         det_angle_cls = tf.reshape(det_angle_cls, [bs, points_num * cls_num, cfg.MODEL.ANGLE_CLS_NUM])
         det_angle_res = tf.reshape(det_angle_res, [bs, points_num * cls_num, cfg.MODEL.ANGLE_CLS_NUM])
-        batch_anchors_3d = tf.reshape(batch_anchors_3d, [bs, points_num * cls_num, 7])
+        batch_anchors_3d = tf.reshape(batch_anchors_3d, [bs, points_num * cls_num, -1])
 
         if self.regression_method == 'Dist-Anchor-free':
             pred_anchors_3d = self.decoder(center_xyz, det_offset, det_angle_cls, det_angle_res, is_training)

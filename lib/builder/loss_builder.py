@@ -6,8 +6,11 @@ from utils.box_3d_utils import transfer_box3d_to_corners
 from utils.tf_ops.grouping.tf_grouping import query_corners_point
 from utils.tf_ops.sampling.tf_sampling import gather_point
 from utils.rotation_util import rotate_points
+from np_functions.gt_sampler import vote_targets_np
 
 import utils.model_util as model_util
+import dataset.maps_dict as maps_dict
+
 
 class LossBuilder:
     def __init__(self, stage):
@@ -18,7 +21,6 @@ class LossBuilder:
 
         self.stage = stage
  
-        self.corner_loss = self.loss_cfg.CORNER_LOSS
         self.cls_loss_type = self.loss_cfg.CLASSIFICATION_LOSS.TYPE
         self.ctr_ness_range = self.loss_cfg.CLASSIFICATION_LOSS.CENTER_NESS_LABEL_RANGE
         self.cls_activation = self.loss_cfg.CLS_ACTIVATION
@@ -66,7 +68,7 @@ class LossBuilder:
         elif self.cls_loss_type == 'Center-ness': # Center-ness label
             base_xyz = pred_dict[maps_dict.KEY_OUTPUT_XYZ][index]
             assigned_boxes_3d = label_dict[maps_dict.GT_BOXES_ANCHORS_3D][index]
-            ctr_ness = _generate_centerness_label(base_xyz, assigned_boxes_3d, pmask)
+            ctr_ness = self._generate_centerness_label(base_xyz, assigned_boxes_3d, pmask)
             gt_cls = gt_cls * tf.expand_dims(ctr_ness, axis=-1)
             cls_loss = tf.nn.sigmoid_cross_entropy_with_logits(labels=gt_cls, logits=pred_cls)
             cls_loss = tf.reduce_mean(cls_loss, axis=-1)
@@ -113,7 +115,7 @@ class LossBuilder:
         min_ctr_ness, max_ctr_ness = self.ctr_ness_range
         ctr_ness_range = max_ctr_ness - min_ctr_ness 
         ctr_ness *= ctr_ness_range
-        ctr_ness += min_ctr_ness_label
+        ctr_ness += min_ctr_ness
 
         return ctr_ness
         
@@ -123,18 +125,15 @@ class LossBuilder:
         for index in range(vote_times):
             vote_offset = pred_dict[maps_dict.PRED_VOTE_OFFSET][index]
             vote_base = pred_dict[maps_dict.PRED_VOTE_BASE][index]    
+            bs, pts_num, _ = vote_offset.get_shape().as_list()
             gt_boxes_3d = placeholders[maps_dict.PL_LABEL_BOXES_3D]
+            vote_mask, vote_target = tf.py_func(vote_targets_np, [vote_base, gt_boxes_3d], [tf.float32, tf.float32]) 
+            vote_mask = tf.reshape(vote_mask, [bs, pts_num])
+            vote_target = tf.reshape(vote_target, [bs, pts_num, 3])
 
-            gt_corners = transfer_box3d_to_corners(gt_boxes_3d) # [bs, gt_num, 8, 3] 
-            vote_query = query_corners_point(vote_base, gt_corners) # [bs, gt_num, pts_num]
-
-            vote_mask = tf.cast(tf.reduce_max(vote_query, axis=1), tf.float32)
-
-            vote_target = tf.cast(tf.argmax(vote_query, axis=1), tf.int32) # [bs, pts_num]
-            vote_target = gather_point(gt_boxes_3d, vote_target) # [bs, pts_num, 7]
 
             vote_loss = tf.reduce_sum(model_util.huber_loss(vote_target - vote_offset, delta=1.), axis=-1) * vote_mask
-            vote_loss = tf.reduce_sum(vote_loss) / tf.maximum(1, tf.reduce_sum(vote_mask))
+            vote_loss = tf.reduce_sum(vote_loss) / tf.maximum(1., tf.reduce_sum(vote_mask))
             vote_loss = tf.identity(vote_loss, 'vote_loss%d'%index)
             tf.summary.scalar('vote_loss%d'%index, vote_loss)
             tf.add_to_collection(tf.GraphKeys.LOSSES, vote_loss)

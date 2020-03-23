@@ -51,17 +51,17 @@ class HeadBuilder:
 
         bs, points_num, _ = xyz_input.get_shape().as_list()
 
-        with tf.variable_scope('') as sc:
+        with tf.variable_scope(self.scope) as sc:
             for i, channel in enumerate(self.mlp_list):
-                feature_input = tf_util.conv1d(feature_input, channel, 1, padding='VALID', stride=1, bn=self.bn, scope='l4_fc%d'%(i+1), bn_decay=bn_decay, is_training=self.is_training)
+                feature_input = tf_util.conv1d(feature_input, channel, 1, padding='VALID', stride=1, bn=self.bn, scope='conv1d_%d'%(i), bn_decay=bn_decay, is_training=self.is_training)
 
             # classification
-            pred_cls = tf_util.conv1d(feature_input, 128, 1, padding='VALID', bn=self.bn, is_training=self.is_training, scope='l4_seg_fc2', bn_decay=bn_decay)
-            pred_cls = tf_util.conv1d(pred_cls, self.pred_cls_channel, 1, padding='VALID', activation_fn=None, scope='l4_rpn_seg')
+            pred_cls = tf_util.conv1d(feature_input, 128, 1, padding='VALID', bn=self.bn, is_training=self.is_training, scope='pred_cls_base', bn_decay=bn_decay)
+            pred_cls = tf_util.conv1d(pred_cls, self.pred_cls_channel, 1, padding='VALID', activation_fn=None, scope='pred_cls')
 
             # recognition
-            pred_reg = tf_util.conv1d(feature_input, 128, 1, padding='VALID', bn=self.bn, is_training=self.is_training, scope='l4_det_fc2', bn_decay=bn_decay)
-            pred_reg = tf_util.conv1d(pred_reg, self.pred_reg_base_num * (6 + cfg.MODEL.ANGLE_CLS_NUM * 2), 1, padding='VALID', activation_fn=None, scope='l4_rpn_det')
+            pred_reg = tf_util.conv1d(feature_input, 128, 1, padding='VALID', bn=self.bn, is_training=self.is_training, scope='pred_reg_base', bn_decay=bn_decay)
+            pred_reg = tf_util.conv1d(pred_reg, self.pred_reg_base_num * (6 + cfg.MODEL.ANGLE_CLS_NUM * 2), 1, padding='VALID', activation_fn=None, scope='pred_reg')
             pred_reg = tf.reshape(pred_reg, [bs, points_num, self.pred_reg_base_num, 6 + cfg.MODEL.ANGLE_CLS_NUM * 2])
 
             if self.head_cfg.PREDICT_ATTRIBUTE_AND_VELOCITY: # velocity and attribute
