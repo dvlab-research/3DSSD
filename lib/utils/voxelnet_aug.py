@@ -194,7 +194,7 @@ def add_symmetric_points_to_gt_original_idx(boxes, points, sem_labels=None, sem_
         return points
 
 
-def box_3d_collision_test(boxes, q_boxes, classes, q_classes, boxes_points, points, sem_labels, sem_dists, enlarge_range=[0.5, 2.0, 0.5]):
+def box_3d_collision_test(boxes, q_boxes, classes, q_classes, boxes_points, points, sem_labels, sem_dists, plane, enlarge_range=[0.5, 2.0, 0.5]):
     """ Calculate whether two boxes are collided
         Args:
             boxes: [n, 7], x, y, z, l, h, w, ry, generate boxes
@@ -206,6 +206,7 @@ def box_3d_collision_test(boxes, q_boxes, classes, q_classes, boxes_points, poin
         Return:
             collision_matrix: [n, m] whether collision or not 
     """
+    a, b, c, d = plane
     # first cast these boxes to the function used format
     enlarge_range = np.array(enlarge_range)
 
@@ -230,6 +231,11 @@ def box_3d_collision_test(boxes, q_boxes, classes, q_classes, boxes_points, poin
             cur_boxes_points = boxes_points[i]
             cur_sem_labels = np.ones([len(cur_boxes_points)], dtype=np.int32) * cur_classes
             cur_sem_dists = np.ones([len(cur_boxes_points)], dtype=np.float32)
+
+            cur_height = (-d - a * cur_boxes[0] - c * cur_boxes[2]) / b
+            move_height = cur_boxes[1] - cur_height
+            cur_boxes_points[:, 1] -= move_height
+            cur_boxes[1] -= move_height
 
             points = np.concatenate([points, cur_boxes_points], axis=0)
             sem_labels = np.concatenate([sem_labels, cur_sem_labels], axis=0)
@@ -365,7 +371,7 @@ def filter_points_boxes_3d(label_boxes_3d, points, sem_labels, dist_labels, enla
     label_boxes_3d[:, 3:-1] -= np.array(enlarge_range)
     return label_boxes_3d, points, sem_labels, dist_labels
 
-def put_boxes_on_planes(label_boxes_3d, points, sem_labels, plane):
+def put_boxes_on_planes(label_boxes_3d, points, sem_labels, plane, expand_dims_length):
     """
     label_boxes_3d: [gt_num, 7]
     plane: 4 params, a/b/c/d
@@ -373,9 +379,12 @@ def put_boxes_on_planes(label_boxes_3d, points, sem_labels, plane):
     a,b,c,d = plane
     gt_num = label_boxes_3d.shape[0]
 
+    cp_label_boxes_3d = label_boxes_3d.copy()
+    cp_label_boxes_3d[:, 3:-1] += expand_dims_length
+
     pos_index = np.where(sem_labels >= 1)[0]
     pos_points = points[pos_index]
-    pos_points_mask = check_inside_points(pos_points, label_boxes_3d) # [pts_num, gt_num]
+    pos_points_mask = check_inside_points(pos_points, cp_label_boxes_3d) # [pts_num, gt_num]
     assigned_gt = np.argmax(pos_points_mask, axis=1) # [pts_num]
 
     # gt_num

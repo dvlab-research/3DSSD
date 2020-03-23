@@ -78,9 +78,9 @@ class LayerBuilder:
             feature_list.append(new_points)
         
         elif self.layer_type == 'Vote_Layer':
-            new_xyz, new_points = vote_layer(xyz_input[0], feature_input[0], self.mlp_list, self.is_training, bn_decay, self.bn, self.scope)
+            new_xyz, new_points, ctr_offsets = vote_layer(xyz_input[0], feature_input[0], self.mlp_list, self.is_training, bn_decay, self.bn, self.scope)
             output_dict[maps_dict.PRED_VOTE_BASE].append(xyz_input[0])
-            output_dict[maps_dict.PRED_VOTE_OFFSET].append(new_xyz)
+            output_dict[maps_dict.PRED_VOTE_OFFSET].append(ctr_offsets)
             xyz_list.append(new_xyz)
             feature_list.append(new_points)
             fps_idx_list.append(None)

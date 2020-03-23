@@ -45,7 +45,9 @@ def vote_targets_np(vote_base, gt_boxes_3d):
         filter_idx = np.where(np.any(np.not_equal(cur_gt_boxes_3d, 0), axis=-1))[0]
         cur_gt_boxes_3d = cur_gt_boxes_3d[filter_idx]
 
-        cur_points_mask = check_inside_points(cur_vote_base, cur_gt_boxes_3d) # [pts_num, gt_num]
+        cur_expand_boxes_3d = cur_gt_boxes_3d.copy()
+        cur_expand_boxes_3d[:, 3:-1] += cfg.TRAIN.AUGMENTATIONS.EXPAND_DIMS_LENGTH
+        cur_points_mask = check_inside_points(cur_vote_base, cur_expand_boxes_3d) # [pts_num, gt_num]
 
         cur_vote_mask = np.max(cur_points_mask, axis=1).astype(np.float32)
         vote_mask[i] = cur_vote_mask
@@ -53,7 +55,8 @@ def vote_targets_np(vote_base, gt_boxes_3d):
         cur_vote_target_idx = np.argmax(cur_points_mask, axis=1) # [pts_num]
         cur_vote_target = cur_gt_boxes_3d[cur_vote_target_idx]
         cur_vote_target[:, 1] = cur_vote_target[:, 1] - cur_vote_target[:, 4] / 2.
-        vote_target[i] = cur_vote_target[:, :3]
+        cur_vote_target = cur_vote_target[:, :3] - cur_vote_base
+        vote_target[i] = cur_vote_target
 
     return vote_mask, vote_target
 

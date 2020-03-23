@@ -19,9 +19,9 @@ def vote_layer(xyz, points, mlp_list, is_training, bn_decay, bn, scope):
         ctr_offsets = tf_util.conv1d(points, 3, 1, padding='VALID', stride=1, bn=False, activation_fn=None, scope='vote_offsets')
 
         min_offset = tf.reshape(cfg.MODEL.MAX_TRANSLATE_RANGE, [1, 1, 3])
-        ctr_offsets = tf.minimum(tf.maximum(ctr_offsets, min_offset), -min_offset)
-        xyz = xyz + ctr_offsets
-    return xyz, points
+        limited_ctr_offsets = tf.minimum(tf.maximum(ctr_offsets, min_offset), -min_offset)
+        xyz = xyz + limited_ctr_offsets 
+    return xyz, points, ctr_offsets
 
 
 def pointnet_sa_module_msg(xyz, points, radius_list, nsample_list, 

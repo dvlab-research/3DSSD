@@ -55,7 +55,7 @@ class DataAugmentor:
         """
         # first Mixup DataAugmentation
         if self.mixup:
-            mixup_result = self.kitti_mixup_sampling(points, sem_labels, sem_dists, label_boxes_3d, label_classes, pipename)
+            mixup_result = self.kitti_mixup_sampling(points, sem_labels, sem_dists, label_boxes_3d, label_classes, plane, pipename)
             points, sem_labels, sem_dists, label_boxes_3d, label_classes, cur_label_num = mixup_result
 
         # randomly flip
@@ -95,14 +95,12 @@ class DataAugmentor:
 
         points = np.concatenate([points, points_i], axis=1)
 
-        # put boxes on planes
-        points, label_boxes_3d = put_boxes_on_planes(label_boxes_3d, points, sem_labels, plane)
-        label_boxes_3d, points, sem_labels, sem_dists = filter_points_boxes_3d(label_boxes_3d, points, sem_labels, sem_dists, enlarge_range=[0.3, 0.5, 0.3])
+        label_boxes_3d, points, sem_labels, sem_dists = filter_points_boxes_3d(label_boxes_3d, points, sem_labels, sem_dists, enlarge_range=[0.5, 2.0, 0.5])
         return points, sem_labels, sem_dists, label_boxes_3d, label_classes
          
 
 
-    def kitti_mixup_sampling(self, points, sem_labels, sem_dists, label_boxes_3d, label_classes, pipename):
+    def kitti_mixup_sampling(self, points, sem_labels, sem_dists, label_boxes_3d, label_classes, plane, pipename):
         mixup_sampler = self.mixup_sampler_list[pipename] 
         sampled_gt_dicts = mixup_sampler.sample()
 
@@ -115,7 +113,7 @@ class DataAugmentor:
             sampled_gt_label_classes.append(self.cls2idx_dict[sampled_gt_dict[maps_dict.KEY_SAMPLED_GT_CLSES]]) 
 
         sampled_gt_label_boxes_3d = np.stack(sampled_gt_label_boxes_3d, axis=0) # [15, 7]
-        label_boxes_3d, label_classes, points, sem_labels, sem_dists = box_3d_collision_test(sampled_gt_label_boxes_3d, label_boxes_3d, sampled_gt_label_classes, label_classes, sampled_gt_inside_points, points, sem_labels, sem_dists)
+        label_boxes_3d, label_classes, points, sem_labels, sem_dists = box_3d_collision_test(sampled_gt_label_boxes_3d, label_boxes_3d, sampled_gt_label_classes, label_classes, sampled_gt_inside_points, points, sem_labels, sem_dists, plane)
 
         return points, sem_labels, sem_dists, label_boxes_3d, label_classes, len(label_boxes_3d) 
 
