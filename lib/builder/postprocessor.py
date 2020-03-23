@@ -8,7 +8,7 @@ from utils.box_3d_utils import box_3d_to_anchor
 import dataset.maps_dict as maps_dict
 
 class PostProcessor:
-    def __init__(self, stage):
+    def __init__(self, stage, cls_num):
         if stage == 0:
             self.postprocessor_cfg = cfg.MODEL.FIRST_STAGE
         elif stage == 1:
@@ -18,8 +18,7 @@ class PostProcessor:
         self.max_output_size = self.postprocessor_cfg.MAX_OUTPUT_NUM
         self.nms_threshold = self.postprocessor_cfg.NMS_THRESH
 
-        self.cls_list = cfg.DATASET.KITTI.CLS_LIST
-        self.cls_num = len(cfg.DATASET.KITTI.CLS_LIST)
+        self.cls_num = cls_num
 
     def forward(self, pred_anchors_3d, pred_score, output_dict, pred_attribute=None, pred_velocity=None):
         """

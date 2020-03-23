@@ -36,7 +36,7 @@ class SingleStageDetector:
         self.encoder_decoder = EncoderDecoder(0)
 
         # postprocessor
-        self.postprocessor = PostProcessor(0)
+        self.postprocessor = PostProcessor(0, len(self.cls_list))
 
         # loss builder
         self.loss_builder = LossBuilder(0)
