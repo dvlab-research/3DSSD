@@ -4,28 +4,30 @@ import tensorflow as tf
 def rotate_points(points, rys):
     """
     Rotate rys
-    points: [b, n, 3]
-    rys: [b]
+    points: [..., n, 3]
+    rys: [...]
     """
     if isinstance(points, tf.Tensor):
         lib_name = tf
-        b = tf.shape(points)[0]
     else:
         lib_name = np
-        b = points.shape[0]
+    # transpose points from [..., n, 3]->[..., 3, n]
+    shape_length = len(rys.get_shape().as_list())
+    transpose_vector = list(np.arange(shape_length))
+    transpose_vector = transpose_vector + [shape_length+1, shape_length]
 
-    c = lib_name.cos(rys)
+    c = lib_name.cos(rys) # [...]
     s = lib_name.sin(rys)
 
-    points = lib_name.transpose(points, [0, 2, 1]) # [b, 3, n]
+    points = lib_name.transpose(points, transpose_vector) # [..., 3, n]
     ones = lib_name.ones_like(c)
     zeros = lib_name.zeros_like(c)
-    row1 = lib_name.stack([c,zeros,s], axis=-1) # (b,3)
+    row1 = lib_name.stack([c,zeros,s], axis=-1) # [...,3]
     row2 = lib_name.stack([zeros,ones,zeros], axis=-1)
     row3 = lib_name.stack([-s,zeros,c], axis=-1)
-    R = lib_name.stack([row1, row2, row3], axis=1) # (b,3,3)
-    canonical_points = lib_name.matmul(R, points) # [b, 3, n]
-    canonical_points = lib_name.transpose(canonical_points, [0, 2, 1]) # [b, n, 3]
+    R = lib_name.stack([row1, row2, row3], axis=-2) # (...,3,3)
+    canonical_points = lib_name.matmul(R, points) # [..., 3, n]
+    canonical_points = lib_name.transpose(canonical_points, transpose_vector) # [b, n, 3]
     return canonical_points
 
 def symmetric_rotate_points(points, rys):

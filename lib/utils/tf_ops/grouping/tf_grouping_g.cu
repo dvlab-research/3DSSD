@@ -24,218 +24,191 @@ const int block_num = 512;
 const int threadsPerBlock = sizeof(unsigned long long) * 8;
 
 
-// __global__ void calculate_points_iou_gpu(int b, int n, int anchors_num, int gt_num, const float* batch_points, const float* batch_anchors_corners, const float* batch_label_corners, float *out){
-//     // batch_points [b, n, 3], batch_anchors_corners[b, anchors_num, 8, 3]
-//     // batch_label_corners [b, gt_num, 8, 3]
-//     // out [b, anchors_num, gt_num], whether a point inside a proposal
-//     int loop_times = b * anchors_num * gt_num;
-//     CUDA_1D_KERNEL_LOOP(index, loop_times){
-//         // loop_kernel
-//         int cur_batch_index = index / (anchors_num * gt_num);
-//         int cur_anchor_index = (index / gt_num) % anchors_num;
-//         int cur_gt_index = index % gt_num;
-//        
-//         const float *cur_batch_anchors_corners = batch_anchors_corners + cur_batch_index * (anchors_num * 8 * 3) + cur_anchor_index * 8 * 3; 
-//         const float* cur_batch_label_corners = batch_label_corners + cur_batch_index * (gt_num * 8 * 3)  + cur_gt_index * 8 * 3;
-//         const float *cur_batch_points = batch_points + cur_batch_index * (n * 3) 
-//         float *cur_out = out + cur_batch_index * anchors_num * gt_num + cur_anchor_index * gt_num + cur_gt_index;
-// 
-//         const float* anchors_P1 = cur_batch_anchors_corners;
-//         const float* anchors_P2 = cur_batch_anchors_corners + 3;
-//         const float* anchors_P4 = cur_batch_anchors_corners + 9; 
-//         const float* anchors_P5 = cur_batch_anchors_corners + 12;
-//         // u
-//         float anchors_u_0 = anchors_P2[0] - anchors_P1[0];
-//         float anchors_u_1 = anchors_P2[1] - anchors_P1[1];
-//         float anchors_u_2 = anchors_P2[2] - anchors_P1[2];
-//         // v
-//         float anchors_v_0 = anchors_P4[0] - anchors_P1[0];
-//         float anchors_v_1 = anchors_P4[1] - anchors_P1[1];
-//         float anchors_v_2 = anchors_P4[2] - anchors_P1[2];
-//         // w
-//         float anchors_w_0 = anchors_P5[0] - anchors_P1[0];
-//         float anchors_w_1 = anchors_P5[1] - anchors_P1[1];
-//         float anchors_w_2 = anchors_P5[2] - anchors_P1[2];
-// 
-//         const float* label_P1 = cur_batch_label_corners; 
-//         const float* label_P2 = cur_batch_label_corners + 3; 
-//         const float* label_P4 = cur_batch_label_corners + 9; 
-//         const float* label_P5 = cur_batch_label_corners + 12; 
-//         float label_u_0 = label_P2[0] - label_P1[0];
-//         float label_u_1 = label_P2[1] - label_P1[1];
-//         float label_u_2 = label_P2[2] - label_P1[2];
-//         float label_v_0 = label_P4[0] - label_P1[0];
-//         float label_v_1 = label_P4[1] - label_P1[1];
-//         float label_v_2 = label_P4[2] - label_P1[2];
-//         float label_w_0 = label_P5[0] - label_P1[0];
-//         float label_w_1 = label_P5[1] - label_P1[1];
-//         float label_w_2 = label_P5[2] - label_P1[2];
-// 
-//         float union_points_num = 0;
-//         float inter_points_num = 0;
-//         for (int i = 0; i < n; i++){
-//             // anchors
-//             float anchors_u_dot_x =  anchors_u_0 * cur_batch_points[0] + anchors_u_1 * cur_batch_points[1] + anchors_u_2 * cur_batch_points[2];
-//             float anchors_u_dot_p1 = anchors_u_0 * anchors_P1[0] + anchors_u_1 * anchors_P1[1] + anchors_u_2 * anchors_P1[2];
-//             float anchors_u_dot_p2 = anchors_u_0 * anchors_P2[0] + anchors_u_1 * anchors_P2[1] + anchors_u_2 * anchors_P2[2];
-//   
-//             float anchors_v_dot_x =  anchors_v_0 * cur_batch_points[0] + anchors_v_1 * cur_batch_points[1] + anchors_v_2 * cur_batch_points[2];
-//             float anchors_v_dot_p1 = anchors_v_0 * anchors_P1[0] + anchors_v_1 * anchors_P1[1] + anchors_v_2 * anchors_P1[2];
-//             float anchors_v_dot_p4 = anchors_v_0 * anchors_P4[0] + anchors_v_1 * anchors_P4[1] + anchors_v_2 * anchors_P4[2];
-// 
-//             float anchors_w_dot_x =  anchors_w_0 * cur_batch_points[0] + anchors_w_1 * cur_batch_points[1] + anchors_w_2 * cur_batch_points[2];
-//             float anchors_w_dot_p1 = anchors_w_0 * anchors_P1[0] + anchors_w_1 * anchors_P1[1] + anchors_w_2 * anchors_P2[2];
-//             float anchors_w_dot_p5 = anchors_w_0 * anchors_P5[0] + anchors_w_1 * anchors_P5[1] + anchors_w_2 * anchors_P5[2];
-// 
-//             // then determine whether in or out
-//             int anchors_cur_point_mask = (anchors_u_dot_p1 < anchors_u_dot_x) & (anchors_u_dot_x < anchors_u_dot_p2) &
-//                                          (anchors_v_dot_p1 < anchors_v_dot_x) & (anchors_v_dot_x < anchors_v_dot_p4) &
-//                                          (anchors_w_dot_p1 < anchors_w_dot_x) & (anchors_w_dot_x < anchors_w_dot_p5);
-// 
-//             // labels 
-//             float labels_u_dot_x =  labels_u_0 * cur_batch_points[0] + labels_u_1 * cur_batch_points[1] + labels_u_2 * cur_batch_points[2];
-//             float labels_u_dot_p1 = labels_u_0 * labels_P1[0] + labels_u_1 * labels_P1[1] + labels_u_2 * labels_P1[2];
-//             float labels_u_dot_p2 = labels_u_0 * labels_P2[0] + labels_u_1 * labels_P2[1] + labels_u_2 * labels_P2[2];
-//   
-//             float labels_v_dot_x =  labels_v_0 * cur_batch_points[0] + labels_v_1 * cur_batch_points[1] + labels_v_2 * cur_batch_points[2];
-//             float labels_v_dot_p1 = labels_v_0 * labels_P1[0] + labels_v_1 * labels_P1[1] + labels_v_2 * labels_P1[2];
-//             float labels_v_dot_p4 = labels_v_0 * labels_P4[0] + labels_v_1 * labels_P4[1] + labels_v_2 * labels_P4[2];
-// 
-//             float labels_w_dot_x =  labels_w_0 * cur_batch_points[0] + labels_w_1 * cur_batch_points[1] + labels_w_2 * cur_batch_points[2];
-//             float labels_w_dot_p1 = labels_w_0 * labels_P1[0] + labels_w_1 * labels_P1[1] + labels_w_2 * labels_P2[2];
-//             float labels_w_dot_p5 = labels_w_0 * labels_P5[0] + labels_w_1 * labels_P5[1] + labels_w_2 * labels_P5[2];
-// 
-//             // then determine whether in or out
-//             int labels_cur_point_mask = (labels_u_dot_p1 < labels_u_dot_x) & (labels_u_dot_x < labels_u_dot_p2) &
-//                                         (labels_v_dot_p1 < labels_v_dot_x) & (labels_v_dot_x < labels_v_dot_p4) &
-//                                         (labels_w_dot_p1 < labels_w_dot_x) & (labels_w_dot_x < labels_w_dot_p5);
-// 
-//             union_points_num += (labels_cur_point_mask | anchors_cur_point_mask);
-//             inter_points_num += (labels_cur_point_mask & anchors_cur_point_mask);
-//         }
-//         cur_out[0] = inter_points_num / union_points_num;
-//     }
-// }
-
-__global__ void query_corners_point_gpu(int b, int n, int proposals_num, const float* batch_points, const float* batch_anchors_corners, int *out){
-    // batch_points [b, n, 3], batch_anchors_corners[b, proposals_num, 8, 3]
-    // out [b, num_proposals, n], whether a point inside a proposal
-    int loop_times = b * proposals_num * n;
-    CUDA_1D_KERNEL_LOOP(index, loop_times){
-        // loop_kernel
-        int cur_batch_index = index / (n * proposals_num);
-        int cur_proposals_index = (index / n) % proposals_num;
-        int cur_point_index = index % n;
-       
-        const float *cur_batch_anchors_corners = batch_anchors_corners + cur_batch_index * (proposals_num * 8 * 3) + cur_proposals_index * 8 * 3; 
-        const float *cur_batch_points = batch_points + cur_batch_index * (n * 3) + cur_point_index * 3;
-        int *cur_out = out + cur_batch_index * proposals_num * n + cur_proposals_index * n + cur_point_index;
-
-        const float* P1 = cur_batch_anchors_corners;
-        const float* P2 = cur_batch_anchors_corners + 3;
-        const float* P4 = cur_batch_anchors_corners + 9; 
-        const float* P5 = cur_batch_anchors_corners + 12;
-
-        // u
-        float u_0 = P2[0] - P1[0];
-        float u_1 = P2[1] - P1[1];
-        float u_2 = P2[2] - P1[2];
-        // v
-        float v_0 = P4[0] - P1[0];
-        float v_1 = P4[1] - P1[1];
-        float v_2 = P4[2] - P1[2];
-        // w
-        float w_0 = P5[0] - P1[0];
-        float w_1 = P5[1] - P1[1];
-        float w_2 = P5[2] - P1[2];
-
-        float u_dot_x = u_0 * cur_batch_points[0] + u_1 * cur_batch_points[1] + u_2 * cur_batch_points[2];
-        float u_dot_p1 = u_0 * P1[0] + u_1 * P1[1] + u_2 * P1[2];
-        float u_dot_p2 = u_0 * P2[0] + u_1 * P2[1] + u_2 * P2[2];
-  
-        float v_dot_x = v_0 * cur_batch_points[0] + v_1 * cur_batch_points[1] + v_2 * cur_batch_points[2];
-        float v_dot_p1 = v_0 * P1[0] + v_1 * P1[1] + v_2 * P1[2];
-        float v_dot_p4 = v_0 * P4[0] + v_1 * P4[1] + v_2 * P4[2];
-
-        float w_dot_x = w_0 * cur_batch_points[0] + w_1 * cur_batch_points[1] + w_2 * cur_batch_points[2];
-        float w_dot_p1 = w_0 * P1[0] + w_1 * P1[1] + w_2 * P2[2];
-        float w_dot_p5 = w_0 * P5[0] + w_1 * P5[1] + w_2 * P5[2];
-
-        // then determine whether in or out
-        int cur_point_mask = (u_dot_p1 < u_dot_x) & (u_dot_x < u_dot_p2) &
-                             (v_dot_p1 < v_dot_x) & (v_dot_x < v_dot_p4) &
-                             (w_dot_p1 < w_dot_x) & (w_dot_x < w_dot_p5);
-        cur_out[0] = cur_point_mask; 
+__device__ static int point_inside_box_3d(float x, float y, float z, float cx, float by, float cz, float l, float h, float w, float ry, float max_distance){
+    float cos_ry, sin_ry;
+    float canonical_x, canonical_z;
+    int inside;
+    if ((fabsf(x - cx) > max_distance) || (y > by) || ((by - y) > h) || (fabsf(z - cz) > max_distance)){
+        return 0;
     }
+    cos_ry = cos(ry); sin_ry = sin(ry);
+    canonical_x = (x - cx) * cos_ry - (z - cz) * sin_ry;
+    canonical_z = (x - cx) * sin_ry + (z - cz) * cos_ry;
+
+    inside = (canonical_x >= -l / 2.0) & (canonical_x <= l / 2.0) & (canonical_z >= -w / 2.0) & (canonical_z <= w / 2.0);
+    return inside;
 }
 
-// input: radius (1), nsample (1), subcube_num(1), total_subcube_num(1), xyz1 (b,n,3), xyz2 (b,m,3)
-// output: idx (b,m,nsample), pts_cnt (b,m,total_subcube_num), subcube_location (b,m,total_subcube_num,3)
-__global__ void query_cube_point_gpu(int b, int n, int m, float radius, int nsample, int subcube_num, int total_subcube_num, const float *xyz1, const float *xyz2, int *idx, int *pts_cnt, float* subcube_location) {
+
+/* query boxes 3d points */
+// input: nsample (1), xyz (b,n,3), proposals (b,m,7)
+// output: idx (b,m,nsample), pts_cnt (b,m)
+__global__ void query_boxes_3d_points_gpu(int b, int n, int m, int nsample, const float *xyz, const float *proposals, int *idx, int *pts_cnt) {
     int total_idx = b * m;
     CUDA_1D_KERNEL_LOOP(point_inds, total_idx){
         int batch_index = point_inds / m;
 
-        const float* cur_xyz1;
-        const float* cur_xyz2;
-        cur_xyz1 = xyz1 + n*3*batch_index;
-        cur_xyz2 = xyz2 + point_inds * 3;
+        const float* cur_xyz;
+        const float* cur_proposal;
+        cur_xyz = xyz + n*3*batch_index;
+        cur_proposal = proposals + point_inds * 7;
 
         int* cur_idx;
         int* cur_pts_cnt;
-        float* cur_subcube_location;
         cur_idx = idx + nsample*point_inds;
-        cur_pts_cnt = pts_cnt + point_inds * total_subcube_num; // pts_num per subcube 
-        cur_subcube_location = subcube_location + point_inds * total_subcube_num * 3;
+        cur_pts_cnt = pts_cnt + point_inds; // counting how many unique points selected in local region
 
-        // current center xyz location
-        float x2=cur_xyz2[0];
-        float y2=cur_xyz2[1];
-        float z2=cur_xyz2[2];
+        float cx= cur_proposal[0];
+        float by= cur_proposal[1];
+        float cz= cur_proposal[2];
+        float l = cur_proposal[3];
+        float h = cur_proposal[4];
+        float w = cur_proposal[5];
+        float ry= cur_proposal[6];
+        float max_distance = max(sqrtf((l / 2.) * (l / 2.)+(w / 2.)*(w / 2.)),1e-20f)
 
-        float radius_per_subcube = radius * 2 / float(subcube_num); 
-        float ctr_x = x2 - radius;
-        float ctr_y = y2 - radius;
-        float ctr_z = z2 - radius;
-        // now calculate cur_subcube_location
-        int cur_subcube_location_idx = 0;
-        for (int i=0; i<subcube_num; i++){
-            for (int j=0; j<subcube_num; j++){
-                for (int k=0; k<subcube_num; k++){
-                    cur_subcube_location_idx = i * subcube_num * subcube_num + j * subcube_num + k;
-                    cur_pts_cnt[cur_subcube_location_idx] = 0;
-                    cur_subcube_location[cur_subcube_location_idx * 3 + 0] = ctr_x + radius_per_subcube * (0.5 + i); 
-                    cur_subcube_location[cur_subcube_location_idx * 3 + 1] = ctr_y + radius_per_subcube * (0.5 + j); 
-                    cur_subcube_location[cur_subcube_location_idx * 3 + 2] = ctr_z + radius_per_subcube * (0.5 + k); 
-                }
-            }
-        }
+        float x, y, z;
+        int inside;
 
-        float x1, y1, z1;
         int cnt = 0;
         for (int k=0;k<n;++k) {
             if (cnt == nsample)
                 break; // only pick the FIRST nsample points in the ball
-            x1=cur_xyz1[k*3+0];
-            y1=cur_xyz1[k*3+1];
-            z1=cur_xyz1[k*3+2];
-            if (abs(x1 - x2) < radius && abs(y1 - y2) < radius && abs(z1 - z2) < radius){
-                cur_subcube_location_idx = floor((x1 - ctr_x) / radius_per_subcube) * subcube_num * subcube_num \
-                                         + floor((y1 - ctr_y) / radius_per_subcube) * subcube_num \
-                                         + floor((z1 - ctr_z) / radius_per_subcube);
-                if (cnt==0) { // set ALL indices to k, s.t. if there are less points in ball than nsample, we still have valid (repeating) indices
+            x=cur_xyz[k*3+0];
+            y=cur_xyz[k*3+1];
+            z=cur_xyz[k*3+2];
+
+            inside = point_inside_box_3d(x, y, z, cx, by, cz, l, h, w, ry, max_distance); 
+
+            if (inside) {
+                if (cnt==0) {
                     for (int l=0;l<nsample;++l)
                         cur_idx[l] = k;
                 }
                 cur_idx[cnt] = k;
-                cur_pts_cnt[cur_subcube_location_idx] += 1;
                 cnt+=1;
             }
         }
+        cur_pts_cnt[0] = cnt;
     }
 }
 
 
+/* query boxes 3d mask */
+// input: xyz (b,n,3), boxes_3d (b,m,7)
+// output: mask (b,m,n)
+__global__ void query_boxes_3d_mask_gpu(int b, int n, int m, const float *xyz, const float *boxes_3d, int *mask){
+    int total_idx = b * m * n;
+    CUDA_1D_KERNEL_LOOP(point_inds, total_idx){
+        int batch_index = point_inds / (m * n);
+        int box_index = point_inds / n;
+        int point_index = point_inds % n;
+
+        const float* cur_xyz;
+        const float* cur_boxes_3d;
+        cur_xyz = xyz + batch_index * n * 3 + point_index * 3;
+        cur_boxes_3d = boxes_3d + box_index * 7;
+
+        int* cur_mask;
+        cur_mask = mask + point_inds;
+
+        float cx= cur_boxes_3d[0];
+        float by= cur_boxes_3d[1];
+        float cz= cur_boxes_3d[2];
+        float l = cur_boxes_3d[3];
+        float h = cur_boxes_3d[4];
+        float w = cur_boxes_3d[5];
+        float ry= cur_boxes_3d[6];
+        float max_distance = max(sqrtf((l / 2.) * (l / 2.)+(w / 2.)*(w / 2.)),1e-20f);
+
+        float x = cur_xyz[0];
+        float y = cur_xyz[1];
+        float z = cur_xyz[2];
+        int inside;
+
+        inside = point_inside_box_3d(x, y, z, cx, by, cz, l, h, w, ry, max_distance); 
+        cur_mask[0] = inside;
+    }
+}
+
+
+/* query points iou */
+// input: xyz (b,n,3), anchors_3d (b,anchors_num,7), gt_boxes_3d (b, gt_num, 7)
+// input: iou_matrix (b, anchors_num, gt_num)
+// output: iou_points(b, anchors_num, gt_num)
+__global__ void query_points_iou_gpu(int b, int n, int anchors_num, int gt_num,
+    const float* xyz, const float* anchors_3d, const float* gt_boxes_3d,
+    const float* iou_matrix, float* iou_points){
+
+    int total_idx = b * anchors_num * gt_num;
+    CUDA_1D_KERNEL_LOOP(point_inds, total_idx){
+        float iou_value = iou_matrix[point_inds]; 
+        if (iou_value < 1e-3f){
+            // if no overlaps around two boxes_3d, then directly return 0
+            iou_points[point_inds] = 0.;
+            continue;
+        }
+        // has overlaps, then calculate PointIoU
+        int batch_index = point_inds / (anchors_num * gt_num);
+        int anchor_index = point_inds / gt_num;
+        int gt_index = point_inds % gt_num;
+
+        const float* cur_xyz;
+        const float* cur_anchors_3d;
+        const float* cur_gt_boxes_3d;
+        cur_xyz = xyz + batch_index * n * 3;
+        cur_anchors_3d = anchors_3d + anchor_index * 7;
+        cur_gt_boxes_3d = gt_boxes_3d + batch_index * gt_num * 7 + gt_index * 7;
+
+        float* cur_iou_points;
+        cur_iou_points = iou_points + point_inds;
+        int in = 0, un = 0
+
+        float gt_boxes_cx= cur_gt_boxes_3d[0];
+        float gt_boxes_by= cur_gt_boxes_3d[1];
+        float gt_boxes_cz= cur_gt_boxes_3d[2];
+        float gt_boxes_l = cur_gt_boxes_3d[3];
+        float gt_boxes_h = cur_gt_boxes_3d[4];
+        float gt_boxes_w = cur_gt_boxes_3d[5];
+        float gt_boxes_ry= cur_gt_boxes_3d[6];
+        float gt_boxes_max_distance = max(sqrtf((gt_boxes_l / 2.) * (gt_boxes_l / 2.)
+                                    + (gt_boxes_w  / 2.) * (gt_boxes_w / 2.)),1e-20f);
+
+        float anchors_cx= cur_anchors_3d[0];
+        float anchors_by= cur_anchors_3d[1];
+        float anchors_cz= cur_anchors_3d[2];
+        float anchors_l = cur_anchors_3d[3];
+        float anchors_h = cur_anchors_3d[4];
+        float anchors_w = cur_anchors_3d[5];
+        float anchors_ry= cur_anchors_3d[6];
+        float anchors_max_distance = max(sqrtf((anchors_l / 2.) * (anchors_l / 2.)
+                                    + (anchors_w / 2.) * (anchors_w / 2.)),1e-20f);
+
+        float x, y, z;
+        int inside_anchors, inside_gt;
+
+        for (int k=0;k<n;++k) {
+            x=cur_xyz[k*3+0];
+            y=cur_xyz[k*3+1];
+            z=cur_xyz[k*3+2];
+
+            inside_anchors = point_inside_box_3d(x, y, z, 
+                anchors_cx, anchors_by, anchors_cz, anchors_l, 
+                anchors_h, anchors_w, anchors_ry, anchors_max_distance);
+
+            inside_gt = point_inside_box_3d(x, y, z,
+                gt_boxes_cx, gt_boxes_by, gt_boxes_cz, gt_boxes_l,
+                gt_boxes_h, gt_boxes_w, gt_boxes_ry, gt_boxes_max_distance); 
+
+            un += (inside_gt | inside_anchors);
+            in += (inside_gt & inside_anchors);
+        }
+        cur_iou_points[0] = float(in) / float(un);
+    }
+}
+
+
+/* query ball points dynamic */
 // input: nsample (1), xyz1 (b,n,3), xyz2 (b,m,3), radius (b, m, split_bin_num)
 // output: idx (b,m,nsample), pts_cnt (b,m), radius_idx (b,m,nsample,2), radius_rate (b,m,nsample,2)
 __global__ void query_ball_point_dynamic_shape_gpu(int b, int n, int m, int split_bin_num, int nsample, const float *xyz1, const float *xyz2, const float* radius, int *idx, int *pts_cnt, int* radius_idx, float* radius_rate) {
@@ -322,6 +295,7 @@ __global__ void query_ball_point_dynamic_shape_gpu(int b, int n, int m, int spli
 }
 
 
+/* query dynamic radius */
 // input: xyz1 (b, n, nsample, 3) radius (b, n, split_bin_num)
 // output: radius_idx (b,n,nsample,2), radius_rate (b,n,nsample,2)
 __global__ void query_dynamic_radius_for_points_gpu(int b, int n, int nsample, int split_bin_num, const float *xyz1, const float* radius, int* radius_idx, float* radius_rate) {
@@ -367,71 +341,7 @@ __global__ void query_dynamic_radius_for_points_gpu(int b, int n, int nsample, i
     }
 }
 
-// input: xyz1 (b, n, 3) gt_boxes_3d (b, n, 7)
-// output: target_dist (b, n, split_bin_num)
-__global__ void query_target_distance_for_points_gpu(int b, int n, int split_bin_num, const float* xyz1, const float* gt_boxes_3d, float* target_dist) {
-    int total_idx = b * n * split_bin_num;
-    CUDA_1D_KERNEL_LOOP(point_inds, total_idx){
-        int pts_index = point_inds / split_bin_num;
-        int cur_split_bin = point_inds % split_bin_num;
 
-        const float* cur_xyz1;
-        cur_xyz1 = xyz1 + pts_index * 3;
-
-        const float* cur_gt_boxes_3d;
-        cur_gt_boxes_3d = gt_boxes_3d + pts_index * 7;
-
-        float* cur_target_dist;
-        cur_target_dist = target_dist + point_inds;
-
-        float x1=cur_xyz1[0];
-        float z1=cur_xyz1[2];
-        float l = cur_gt_boxes_3d[3] / 2.;
-        float w = cur_gt_boxes_3d[5] / 2.;
-        float cur_box_angle = cur_gt_boxes_3d[6];
-
-        float interval = 2 * M_PI / float(split_bin_num); // 2pi / split_bin
-
-        float cur_theta = float(cur_split_bin) * interval + cur_box_angle + float(2 * M_PI); 
-        cur_theta = fmod(cur_theta, float(2 * M_PI));
-        float cur_x, cur_y, cur_distance;
-
-        if (cur_theta < M_PI / 2.){
-            cur_y = abs(w - z1);
-            cur_x = abs(cur_y / tan(cur_theta)); 
-            if (cur_x > abs(l - x1)) {
-                cur_x = abs(l - x1);
-                cur_y = abs(cur_x * tan(cur_theta));
-            }
-            cur_distance = sqrtf(cur_x * cur_x + cur_y * cur_y);
-        } else if (cur_theta >= M_PI / 2. && cur_theta < M_PI) {
-            cur_y = abs(w - z1);
-            cur_x = abs(cur_y / tan(cur_theta)); 
-            if (cur_x > abs(-l - x1)) {
-                cur_x = abs(-l - x1);
-                cur_y = abs(cur_x * tan(cur_theta));
-            }
-            cur_distance = sqrtf(cur_x * cur_x + cur_y * cur_y);
-        } else if (cur_theta >= M_PI && cur_theta < M_PI * 3. / 2.) {
-            cur_y = abs(-w - z1);
-            cur_x = abs(cur_y / tan(cur_theta)); 
-            if (cur_x > abs(-l - x1)) {
-                cur_x = abs(-l - x1);
-                cur_y = abs(cur_x * tan(cur_theta));
-            }
-            cur_distance = sqrtf(cur_x * cur_x + cur_y * cur_y);
-        } else if (cur_theta >= M_PI * 3. / 2.) {
-            cur_y = abs(-w - z1);
-            cur_x = abs(cur_y / tan(cur_theta)); 
-            if (cur_x > abs(l-x1)) {
-                cur_x = abs(l-x1);
-                cur_y = abs(cur_x * tan(cur_theta));
-            }
-            cur_distance = sqrtf(cur_x * cur_x + cur_y * cur_y);
-        } 
-        cur_target_dist[0] = cur_distance;
-    }
-}
 
 // input: radius (1), nsample (1), xyz1 (b,n,3), xyz2 (b,m,3)
 // output: idx (b,m,nsample), pts_cnt (b,m)
@@ -711,17 +621,19 @@ __global__ void selection_sort_gpu(int b, int n, int m, int k, const float *dist
 }
 
 
-// void calculatePointsIouLauncher(int b, int n, int anchors_num, int gt_num, const float* batch_points, const float* batch_anchors_corners, const float* batch_label_corners, float *out){
-//     calculate_points_iou_gpu<<<block_num, threadsPerBlock>>>(b, n, anchors_num, gt_num, batch_points, batch_anchors_corners, batch_label_corners, out);
-// }
 
-void queryCornersPointLauncher(int b, int n, int proposals_num, const float* batch_points, const float* batch_anchors_corners, int *out){
-    query_corners_point_gpu<<<block_num, threadsPerBlock>>>(b, n, proposals_num, batch_points, batch_anchors_corners, out);
+void queryBoxes3dPointsLauncher(int b, int n, int m, int nsample, const float *xyz, const float *proposals, int *idx, int *pts_cnt){
+    query_boxes_3d_points_gpu<<<block_num, threadsPerBlock>>>(b,n,m,nsample,xyz,proposals,idx,pts_cnt);
 }
 
-void queryCubePointLauncher(int b, int n, int m, float radius, int nsample, int subcube_num, int total_subcube_num, const float *xyz1, const float *xyz2, int *idx, int *pts_cnt, float* subcube_location) {
-    query_cube_point_gpu<<<block_num,threadsPerBlock>>>(b,n,m,radius,nsample,subcube_num,total_subcube_num,xyz1,xyz2,idx,pts_cnt,subcube_location);
-    //cudaDeviceSynchronize();
+void queryBoxes3dMaskLauncher(int b, int n, int m, const float *xyz, const float *boxes_3d, int *mask){
+    query_boxes_3d_mask_gpu<<<block_num, threadsPerBlock>>>(b,n,m,xyz,boxes_3d,mask);
+}
+
+void queryPointsIouLauncher(int b, int n, int anchors_num, int gt_num, const float* xyz, const float* anchors_3d, const float* gt_boxes_3d, const float* iou_matrix, float* iou_points){
+    query_points_iou_gpu<<<block_num, threadsPerBlock>>>(b,n,anchors_num,gt_num,
+                                                         xyz, anchors_3d, gt_boxes_3d,
+                                                         iou_matrix, iou_points);
 }
 
 void queryBallPointDynamicShapeLauncher(int b, int n, int m, int split_bin_num, int nsample, const float *xyz1, const float *xyz2, const float* radius, int *idx, int *pts_cnt, int* radius_idx, float* radius_rate){
@@ -744,9 +656,6 @@ void queryBallPointDynamicRadiusLauncher(int b, int n, int m, int nsample, const
 }
 void queryDynamicRadiusForPointsLauncher(int b, int n, int nsample, int split_bin_num, const float *xyz1, const float* radius, int* radius_idx, float* radius_rate){
     query_dynamic_radius_for_points_gpu<<<block_num,threadsPerBlock>>>(b, n, nsample, split_bin_num, xyz1, radius, radius_idx, radius_rate);
-}
-void queryTargetDistanceForPointsLauncher(int b, int n, int split_bin_num, const float* xyz1, const float* gt_boxes_3d, float* target_dist){
-    query_target_distance_for_points_gpu<<<block_num,threadsPerBlock>>>(b, n, split_bin_num, xyz1, gt_boxes_3d, target_dist);
 }
 void selectionSortLauncher(int b, int n, int m, int k, const float *dist, int *outi, float *out) {
     selection_sort_gpu<<<b,256>>>(b,n,m,k,dist,outi,out); 

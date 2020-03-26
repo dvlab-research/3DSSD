@@ -24,6 +24,38 @@ def vote_layer(xyz, points, mlp_list, is_training, bn_decay, bn, scope):
     return xyz, points, ctr_offsets
 
 
+def pointnet_sa_module(xyz, points, mlp,
+                       is_training, bn_decay, bn, 
+                       scope):
+    ''' PointNet Set Abstraction (SA) Module (Last Layer)
+        Sample all points within the point cloud and extract a global feature
+        Input:
+            xyz: (batch_size, ndataset, 3) TF tensor
+            points: (batch_size, ndataset, channel) TF tensor
+            mlp_list: list of int32 -- output size for MLP on each point
+        Return:
+            new_xyz: (batch_size, npoint, 3) TF tensor
+            new_points: (batch_size, npoint, mlp[-1] or mlp2[-1]) TF tensor
+            idx: (batch_size, npoint, nsample) int32 -- indices for local regions
+    '''
+    with tf.variable_scope(scope) as sc:
+        grouped_points = tf.concat([xyz, points], axis=-1) # [bs, npoint, 3+c] 
+
+        for j, num_out_channel in enumerate(mlp):
+            grouped_points = tf_util.conv1d(grouped_points, 
+                                            num_out_channel, 
+                                            1,
+                                            padding='VALID', 
+                                            bn=bn, 
+                                            is_training=is_training,
+                                            scope='conv%d' % j, 
+                                            bn_decay=bn_decay)
+        # bs, num_out_channel
+        new_points = tf.reduce_max(grouped_points, axis=1)
+    return new_points
+    
+
+
 def pointnet_sa_module_msg(xyz, points, radius_list, nsample_list, 
                            mlp_list, is_training, bn_decay, bn, 
                            fps_sample_range_list, fps_method_list, npoint_list, 
@@ -130,7 +162,6 @@ def pointnet_sa_module_msg(xyz, points, radius_list, nsample_list,
             grouped_xyz -= tf.expand_dims(new_xyz, 2)
             grouped_points = group_point(points, idx)
 
-            # then normalize group_point by the distance
             grouped_points = tf.concat([grouped_points, grouped_xyz], axis=-1)
 
             for j, num_out_channel in enumerate(mlp_list[i]):

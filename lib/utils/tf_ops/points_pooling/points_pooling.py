@@ -7,18 +7,18 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(BASE_DIR)
 points_pooling_module=tf.load_op_library(os.path.join(BASE_DIR, 'tf_points_pooling_so.so'))
 
-def points_pooling(pc, proposals, pc_location, l=7, h=7, w=7, sample_num=35):
+def points_pooling(pc, box_3d, pc_loc, l=7, h=7, w=7, sample_num=35):
     """
-    param pc: the whole point cloud, [n, 512, c], n: proposal_num
-    param proposals: [n, 6]: xmin, xmax, ymin, ymax, zmin, zmax
-    param pc_locations: [n, 512, 3], [xyz] location of each points
+    param pc: the whole point cloud, [bs, proposal_num, pts_sample_num, c]
+    param box_3d: [bs, proposal, 6]: x, y, z, l, h, w
+    param pc_loc: [bs, proposal_num, pts_sample_num, 3], [xyz] location of each points
     return: 
-      out_features: [n, l, h, w, sampling_num, c]
-      out_idx: [n, l, h, w, sampling_num], index
-      out_points_num
-      anchors_pillars: [n, l, h, w, 3] # center of each pillar
+      out_features: [bs, proposal_num, l, h, w, sample_num, c]
+      out_idx: [bs, proposal_num, l, h, w, sample_num], index
+      out_points_num: [bs, proposal_num, l, h, w]
+      pillars: [bs, proposal_num, l, h, w, 3] # center of each pillar
     """
-    return points_pooling_module.points_pooling(pc, proposals, pc_location, l, h, w, sample_num)
+    return points_pooling_module.points_pooling(pc, box_3d, pc_loc, l, h, w, sample_num)
 @tf.RegisterGradient('PointsPooling')
 def _points_pooling_grad(op, features_grad, _1, _2, _3):
     # features_grad: [n, l, h, w, sampling_num, c]

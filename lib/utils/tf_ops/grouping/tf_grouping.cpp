@@ -10,55 +10,49 @@
 #include <cuda_runtime.h>
 using namespace tensorflow;
 
-REGISTER_OP("CalculatePointsIou")
-    .Input("batch_points: float32") // [b, n, 3]
-    .Input("batch_anchors_corners: float32") // [b, num_anchors, 8, 3]
-    .Input("batch_label_corners: float32") // [bs, gt_num, 8, 3]
-    .Output("out: float32") // [b, num_anchors, gt_num]
+REGISTER_OP("QueryBoxes3dMask")
+    .Input("xyz: float32")
+    .Input("boxes_3d: float32")
+    .Output("mask: int32")
     .SetShapeFn([](::tensorflow::shape_inference::InferenceContext* c) {
-        ::tensorflow::shape_inference::ShapeHandle dims1; // batch_size * num_anchors * 8 * 3
-        c->WithRank(c->input(1), 4, &dims1);
-        ::tensorflow::shape_inference::ShapeHandle dims2; // batch_size * gt_num * 8 * 3
-        c->WithRank(c->input(2), 4, &dims2);
-        ::tensorflow::shape_inference::ShapeHandle output1 = c->MakeShape({c->Dim(dims1, 0), c->Dim(dims1, 1), c->Dim(dims2, 1)}); // batch_size, num_anchors, gt_num
-        c->set_output(0, output1);
-        return Status::OK();
-    });
-REGISTER_OP("QueryCornersPoint")
-    .Input("batch_points: float32") // [b, n, 3]
-    .Input("batch_anchors_corners: float32") // [b, num_proposals, 8, 3]
-    .Output("out: int32") // [b, num_proposals, n]
-    .SetShapeFn([](::tensorflow::shape_inference::InferenceContext* c) {
-        ::tensorflow::shape_inference::ShapeHandle dims1; // batch_size * npoint * 3
+        ::tensorflow::shape_inference::ShapeHandle dims1; // bs, pts_num, 3
         c->WithRank(c->input(0), 3, &dims1);
-        ::tensorflow::shape_inference::ShapeHandle dims2; // batch_size * num_proposals * 8 * 3
-        c->WithRank(c->input(1), 4, &dims2);
-        ::tensorflow::shape_inference::ShapeHandle output1 = c->MakeShape({c->Dim(dims1, 0), c->Dim(dims2, 1), c->Dim(dims1, 1)}); // batch_size, num_proposals, npoint
+        ::tensorflow::shape_inference::ShapeHandle dims2; // bs, proposal_num, 7
+        c->WithRank(c->input(1), 3, &dims2);
+        ::tensorflow::shape_inference::ShapeHandle output1 = c->MakeShape({c->Dim(dims2, 0), c->Dim(dims2, 1), c->Dim(dims1, 1)}); // bs, proposal_num, pts_num 
         c->set_output(0, output1);
         return Status::OK();
     });
-REGISTER_OP("QueryCubePoint")
-    .Attr("radius: float")
-    .Attr("nsample: int")
-    .Attr("subcube_num: int")
-    .Input("xyz1: float32") // batch_size, ndataset, 3
-    .Input("xyz2: float32") // batch_size, npoint, 3
-    .Output("idx: int32") // batch_size, npoint, nsample
-    .Output("pts_cnt: int32") // batch_size, npoint, subcube_num^3
-    .Output("subcube_location: float32") // batch_size, npoint, subcube_num ^ 3, 3
+REGISTER_OP("QueryPointsIou")
+    .Input("xyz: float32")
+    .Input("anchors_3d: float32")
+    .Input("gt_boxes_3d: float32")
+    .Input("iou_matrix: float32")
+    .Output("iou_points: float32")
     .SetShapeFn([](::tensorflow::shape_inference::InferenceContext* c) {
-        ::tensorflow::shape_inference::ShapeHandle dims2; // batch_size * npoint * 3
+        ::tensorflow::shape_inference::ShapeHandle dims1; // bs, anchors_num, 7
+        c->WithRank(c->input(1), 3, &dims1);
+        ::tensorflow::shape_inference::ShapeHandle dims2; // bs, gt_num, 7
+        c->WithRank(c->input(2), 3, &dims2);
+        ::tensorflow::shape_inference::ShapeHandle output1 = c->MakeShape({c->Dim(dims1, 0), c->Dim(dims1, 1), c->Dim(dims2, 1)}); // bs, anchors_num, gt_num
+        c->set_output(0, output1);
+        return Status::OK();
+    });
+REGISTER_OP("QueryBoxes3dPoints")
+    .Attr("nsample: int")
+    .Input("xyz: float32")
+    .Input("proposals: float32")
+    .Output("idx: int32")
+    .Output("pts_cnt: int32")
+    .SetShapeFn([](::tensorflow::shape_inference::InferenceContext* c) {
+        ::tensorflow::shape_inference::ShapeHandle dims2; // bs, proposal_num, 7
         c->WithRank(c->input(1), 3, &dims2);
         int nsample;
         TF_RETURN_IF_ERROR(c->GetAttr("nsample", &nsample));
-        int subcube_num;
-        TF_RETURN_IF_ERROR(c->GetAttr("subcube_num", &subcube_num));
-        ::tensorflow::shape_inference::ShapeHandle output1 = c->MakeShape({c->Dim(dims2, 0), c->Dim(dims2, 1), nsample});
+        ::tensorflow::shape_inference::ShapeHandle output1 = c->MakeShape({c->Dim(dims2, 0), c->Dim(dims2, 1), nsample}); // bs, proposal_num, nsample
         c->set_output(0, output1);
-        ::tensorflow::shape_inference::ShapeHandle output2 = c->MakeShape({c->Dim(dims2, 0), c->Dim(dims2, 1), subcube_num * subcube_num * subcube_num});
+        ::tensorflow::shape_inference::ShapeHandle output2 = c->MakeShape({c->Dim(dims2, 0), c->Dim(dims2, 1)}); // bs, proposal_num
         c->set_output(1, output2);
-        ::tensorflow::shape_inference::ShapeHandle output3 = c->MakeShape({c->Dim(dims2, 0), c->Dim(dims2, 1), subcube_num * subcube_num * subcube_num, 3});
-        c->set_output(2, output3);
         return Status::OK();
     });
 REGISTER_OP("QueryBallPointDynamicShape")
@@ -97,20 +91,6 @@ REGISTER_OP("QueryDynamicRadiusForPoints")
         c->set_output(0, output1);
         ::tensorflow::shape_inference::ShapeHandle output2 = c->MakeShape({c->Dim(dims1, 0), c->Dim(dims1, 1), c->Dim(dims1, 2), 2});
         c->set_output(1, output2);
-        return Status::OK();
-    });
-REGISTER_OP("QueryTargetDistanceForPoints")
-    .Attr("split_bin_num: int")
-    .Input("xyz1: float32") // [bs, npoint, 3]
-    .Input("gt_boxes_3d: float32") // [bs, npoint, 7]
-    .Output("target_dist: float32") // [bs, npoint, split_bin_num]
-    .SetShapeFn([](::tensorflow::shape_inference::InferenceContext* c) {
-        ::tensorflow::shape_inference::ShapeHandle dims1; // bs, npoint, 3
-        c->WithRank(c->input(0), 3, &dims1);
-        int split_bin_num;
-        TF_RETURN_IF_ERROR(c->GetAttr("split_bin_num", &split_bin_num));
-        ::tensorflow::shape_inference::ShapeHandle output1 = c->MakeShape({c->Dim(dims1, 0), c->Dim(dims1, 1), split_bin_num}); // bs, npoint, nsample, 2
-        c->set_output(0, output1);
         return Status::OK();
     });
 REGISTER_OP("QueryBallPoint")
@@ -223,127 +203,122 @@ REGISTER_OP("GroupPointGrad")
 
 
 
-// CalculatePointsIou
-// void calculatePointsIouLauncher(int b, int n, int anchors_num, int gt_num, const float* batch_points, const float* batch_anchors_corners, const float* batch_label_corners, float* out);
-class CalculatePointsIouGpuOp : public OpKernel {
+// QueryBoxes3dMask 
+void queryBoxes3dMaskLauncher(int b, int n, int m, const float *xyz, const float *boxes_3d, int *mask);
+class QueryBoxes3dMaskGpuOp : public OpKernel {
     public:
-        explicit CalculatePointsIouGpuOp(OpKernelConstruction* context) : OpKernel(context) {}
+        explicit QueryBoxes3dMaskGpuOp(OpKernelConstruction* context) : OpKernel(context) {}
 
         void Compute(OpKernelContext* context) override {
-            const Tensor& batch_points_tensor = context->input(0); // [b, n, 3]
-            OP_REQUIRES(context, batch_points_tensor.dims()==3 && batch_points_tensor.shape().dim_size(2)==3, errors::InvalidArgument("CalculatePointsIou expects (batch_size, ndataset, 3) batch points shape."));
-            int b = batch_points_tensor.shape().dim_size(0);
-            int n = batch_points_tensor.shape().dim_size(1);
+            const Tensor& xyz_tensor = context->input(0);
+            OP_REQUIRES(context, xyz_tensor.dims()==3 && xyz_tensor.shape().dim_size(2)==3, errors::InvalidArgument("QueryBoxes3dMask expects (batch_size, ndataset, 3) xyz shape."));
+            int b = xyz_tensor.shape().dim_size(0);
+            int n = xyz_tensor.shape().dim_size(1);
 
-            const Tensor& batch_anchors_corners_tensor = context->input(1);
-            OP_REQUIRES(context, batch_anchors_corners_tensor.dims()==4 && batch_anchors_corners_tensor.shape().dim_size(0)==b && batch_anchors_corners_tensor.shape().dim_size(2)==8 && batch_anchors_corners_tensor.shape().dim_size(3)==3, errors::InvalidArgument("CalculatePointsIou expects (batch_size, num_proposals, 8, 3) xyz2 shape."));
-            int num_anchors = batch_anchors_corners_tensor.shape().dim_size(1);
+            const Tensor& boxes_3d_tensor = context->input(1);
+            OP_REQUIRES(context, boxes_3d_tensor.dims()==3 && boxes_3d_tensor.shape().dim_size(2)==7, errors::InvalidArgument("QueryBoxes3dMask expects (batch_size, box_num, 7) boxes shape."));
+            int m = boxes_3d_tensor.shape().dim_size(1);
 
-            const Tensor& batch_label_corners_tensor = context->input(2);
-            OP_REQUIRES(context, batch_label_corners_tensor.dims()==4 && batch_label_corners_tensor.shape().dim_size(0)==b && batch_label_corners_tensor.shape().dim_size(2)==8 && batch_label_corners_tensor.shape().dim_size(3)==3, errors::InvalidArgument("CalculatePointsIou expects (batch_size, gt_num, 8, 3) xyz2 shape."));
-            int gt_num = batch_label_corners_tensor.shape().dim_size(1);
+            Tensor *mask_tensor = nullptr;
+            OP_REQUIRES_OK(context, context->allocate_output(0, TensorShape{b,m,n}, &mask_tensor));
 
-            Tensor *out_tensor = nullptr;
-            OP_REQUIRES_OK(context, context->allocate_output(0, TensorShape{b,num_anchors,gt_num}, &out_tensor));
-
-            auto batch_points_flat = batch_points_tensor.flat<float>();
-            const float *batch_points = &(batch_points_flat(0));
-            auto batch_anchors_corners_flat = batch_anchors_corners_tensor.flat<float>();
-            const float *batch_anchors_corners= &(batch_anchors_corners_flat(0));
-            auto batch_label_corners_flat = batch_label_corners_tensor.flat<float>();
-            const float *batch_label_corners = &(batch_label_corners_flat(0));
-
-            auto out_flat = out_tensor->flat<float>();
-            float *out = &(out_flat(0));
-            // calculatePointsIouLauncher(b, n, num_anchors, gt_num, batch_points, batch_anchors_corners, batch_label_corners, out);
+            auto xyz_flat = xyz_tensor.flat<float>();
+            const float *xyz = &(xyz_flat(0));
+            auto boxes_3d_flat = boxes_3d_tensor.flat<float>();
+            const float *boxes_3d = &(boxes_3d_flat(0));
+            auto mask_flat = mask_tensor->flat<int>();
+            int *mask = &(mask_flat(0));
+            queryBoxes3dMaskLauncher(b,n,m,xyz,boxes_3d,mask);
         }
 };
-REGISTER_KERNEL_BUILDER(Name("CalculatePointsIou").Device(DEVICE_GPU), CalculatePointsIouGpuOp);
+REGISTER_KERNEL_BUILDER(Name("QueryBoxes3dMask").Device(DEVICE_GPU), QueryBoxes3dMaskGpuOp);
 
 
-// QueryCornersPoint
-void queryCornersPointLauncher(int b, int n, int proposals_num, const float* batch_points, const float* batch_anchors_corners, int *out);
-class QueryCornersPointGpuOp : public OpKernel {
+// QueryPointsIou 
+void queryPointsIouLauncher(int b, int n, int anchors_num, int gt_num,
+    const float* xyz, const float* anchors_3d, const float* gt_boxes_3d,
+    const float* iou_matrix, float* iou_points);
+class QueryPointsIouGpuOp : public OpKernel {
     public:
-        explicit QueryCornersPointGpuOp(OpKernelConstruction* context) : OpKernel(context) {}
+        explicit QueryPointsIouGpuOp(OpKernelConstruction* context) : OpKernel(context) {}
 
         void Compute(OpKernelContext* context) override {
-            const Tensor& batch_points_tensor = context->input(0); // [b, n, 3]
-            OP_REQUIRES(context, batch_points_tensor.dims()==3 && batch_points_tensor.shape().dim_size(2)==3, errors::InvalidArgument("QueryCornersPoints expects (batch_size, ndataset, 3) batch points shape."));
-            int b = batch_points_tensor.shape().dim_size(0);
-            int n = batch_points_tensor.shape().dim_size(1);
+            const Tensor& xyz_tensor = context->input(0);
+            OP_REQUIRES(context, xyz_tensor.dims()==3 && xyz_tensor.shape().dim_size(2)==3, errors::InvalidArgument("QueryPointsIou expects (batch_size, ndataset, 3) xyz shape."));
+            int b = xyz_tensor.shape().dim_size(0);
+            int n = xyz_tensor.shape().dim_size(1);
 
-            const Tensor& batch_anchors_corners_tensor = context->input(1);
-            OP_REQUIRES(context, batch_anchors_corners_tensor.dims()==4 && batch_anchors_corners_tensor.shape().dim_size(0)==b && batch_anchors_corners_tensor.shape().dim_size(2)==8 && batch_anchors_corners_tensor.shape().dim_size(3)==3, errors::InvalidArgument("QueryCornersPoints expects (batch_size, num_proposals, 8, 3) xyz2 shape."));
-            int proposals_num = batch_anchors_corners_tensor.shape().dim_size(1);
+            const Tensor& anchors_3d_tensor = context->input(1);
+            OP_REQUIRES(context, anchors_3d_tensor.dims()==3 && anchors_3d_tensor.shape().dim_size(2)==7, errors::InvalidArgument("QueryPointsIou expects (batch_size, anchors_num, 7) anchors shape."));
+            int anchors_num = anchors_3d_tensor.shape().dim_size(1);
 
-            Tensor *out_tensor = nullptr;
-            OP_REQUIRES_OK(context, context->allocate_output(0, TensorShape{b,proposals_num,n}, &out_tensor));
+            const Tensor& gt_boxes_3d_tensor = context->input(2);
+            OP_REQUIRES(context, gt_boxes_3d_tensor.dims()==3 && gt_boxes_3d_tensor.shape().dim_size(2)==7, errors::InvalidArgument("QueryPointsIou expects (batch_size, gt_num, 7) gt_boxes_3d shape."));
+            int gt_num = gt_boxes_3d_tensor.shape().dim_size(1);
 
-            auto batch_points_flat = batch_points_tensor.flat<float>();
-            const float *batch_points = &(batch_points_flat(0));
-            auto batch_anchors_corners_flat = batch_anchors_corners_tensor.flat<float>();
-            const float *batch_anchors_corners= &(batch_anchors_corners_flat(0));
-            auto out_flat = out_tensor->flat<int>();
-            int *out = &(out_flat(0));
-            queryCornersPointLauncher(b, n, proposals_num, batch_points, batch_anchors_corners, out);
+            const Tensor& iou_matrix_tensor = context->input(3);
+            OP_REQUIRES(context, iou_matrix_tensor.dims()==3 && iou_matrix_tensor.shape().dim_size(1)==anchors_num && iou_matrix_tensor.shape().dim_size(2) == gt_num, errors::InvalidArgument("QueryPointsIou expects (batch_size, anchors_num, gt_num) iou_matrix_tensor shape."));
+
+            Tensor *iou_points_tensor = nullptr;
+            OP_REQUIRES_OK(context, context->allocate_output(0, TensorShape{b,anchors_num,gt_num}, &iou_points_tensor));
+
+            auto xyz_flat = xyz_tensor.flat<float>();
+            const float *xyz = &(xyz_flat(0));
+            auto anchors_3d_flat = anchors_3d_tensor.flat<float>();
+            const float* anchors_3d = &(anchors_3d_flat(0));
+            auto gt_boxes_3d_flat = gt_boxes_3d_tensor.flat<float>();
+            const float* gt_boxes_3d = &(gt_boxes_3d_flat(0));
+            auto iou_matrix_flat = iou_matrix_tensor.flat<float>();
+            const float* iou_matrix = &(iou_matrix_flat(0));
+
+            auto iou_points_flat = iou_points_tensor->flat<float>();
+            float *iou_points = &(iou_points_flat(0));
+            queryPointsIouLauncher(b,n,anchors_num,gt_num,
+                                   xyz, anchors_3d, gt_boxes_3d,
+                                   iou_matrix, iou_points);
         }
 };
-REGISTER_KERNEL_BUILDER(Name("QueryCornersPoint").Device(DEVICE_GPU), QueryCornersPointGpuOp);
+REGISTER_KERNEL_BUILDER(Name("QueryPointsIou").Device(DEVICE_GPU), QueryPointsIouGpuOp);
 
-
-// QueryCubePoint 
-void queryCubePointLauncher(int b, int n, int m, float radius, int nsample, int subcube_num, int total_subcube_num, const float *xyz1, const float *xyz2, int *idx, int *pts_cnt, float* subcube_location);
-class QueryCubePointGpuOp : public OpKernel {
+// QueryBoxes3dPoints 
+void queryBoxes3dPointsLauncher(int b, int n, int m, int nsample, const float *xyz, const float *proposals, int *idx, int *pts_cnt);
+class QueryBoxes3dPointsGpuOp : public OpKernel {
     public:
-        explicit QueryCubePointGpuOp(OpKernelConstruction* context) : OpKernel(context) {
-            OP_REQUIRES_OK(context, context->GetAttr("radius", &radius_));
-            OP_REQUIRES(context, radius_ > 0, errors::InvalidArgument("QueryCubePoint expects positive radius"));
-
+        explicit QueryBoxes3dPointsGpuOp(OpKernelConstruction* context) : OpKernel(context) {
             OP_REQUIRES_OK(context, context->GetAttr("nsample", &nsample_));
-            OP_REQUIRES(context, nsample_ > 0, errors::InvalidArgument("QueryCubePoint expects positive nsample"));
-
-            OP_REQUIRES_OK(context, context->GetAttr("subcube_num", &subcube_num_));
-            OP_REQUIRES(context, subcube_num_ > 0, errors::InvalidArgument("QueryCubePoint expects positive subcube_num"));
-            total_subcube_num_ = subcube_num_ * subcube_num_ * subcube_num_;
+            OP_REQUIRES(context, nsample_ > 0, errors::InvalidArgument("QueryBoxes3dPoints expects positive nsample"));
         }
 
         void Compute(OpKernelContext* context) override {
-            const Tensor& xyz1_tensor = context->input(0);
-            OP_REQUIRES(context, xyz1_tensor.dims()==3 && xyz1_tensor.shape().dim_size(2)==3, errors::InvalidArgument("QueryCubePoint expects (batch_size, ndataset, 3) xyz1 shape."));
-            int b = xyz1_tensor.shape().dim_size(0);
-            int n = xyz1_tensor.shape().dim_size(1);
+            const Tensor& xyz_tensor = context->input(0);
+            OP_REQUIRES(context, xyz_tensor.dims()==3 && xyz_tensor.shape().dim_size(2)==3, errors::InvalidArgument("QueryBoxes3dPoints expects (batch_size, ndataset, 3) xyz shape."));
+            int b = xyz_tensor.shape().dim_size(0);
+            int n = xyz_tensor.shape().dim_size(1);
 
-            const Tensor& xyz2_tensor = context->input(1);
-            OP_REQUIRES(context, xyz2_tensor.dims()==3 && xyz2_tensor.shape().dim_size(2)==3, errors::InvalidArgument("QueryCubePoint expects (batch_size, npoint, 3) xyz2 shape."));
-            int m = xyz2_tensor.shape().dim_size(1);
+            const Tensor& proposals_tensor = context->input(1);
+            OP_REQUIRES(context, proposals_tensor.dims()==3 && proposals_tensor.shape().dim_size(2)==7, errors::InvalidArgument("QueryBoxes3dPoints expects (batch_size, proposal_num, 7) proposal shape."));
+            int m = proposals_tensor.shape().dim_size(1);
 
             Tensor *idx_tensor = nullptr;
             OP_REQUIRES_OK(context, context->allocate_output(0, TensorShape{b,m,nsample_}, &idx_tensor));
             Tensor *pts_cnt_tensor = nullptr;
-            OP_REQUIRES_OK(context, context->allocate_output(1, TensorShape{b,m,total_subcube_num_}, &pts_cnt_tensor));
-            Tensor *subcube_location_tensor = nullptr;
-            OP_REQUIRES_OK(context, context->allocate_output(2, TensorShape{b,m,total_subcube_num_,3}, &subcube_location_tensor));
+            OP_REQUIRES_OK(context, context->allocate_output(1, TensorShape{b,m}, &pts_cnt_tensor));
 
-            auto xyz1_flat = xyz1_tensor.flat<float>();
-            const float *xyz1 = &(xyz1_flat(0));
-            auto xyz2_flat = xyz2_tensor.flat<float>();
-            const float *xyz2 = &(xyz2_flat(0));
+            auto xyz_flat = xyz_tensor.flat<float>();
+            const float *xyz = &(xyz_flat(0));
+            auto proposals_flat = proposals_tensor.flat<float>();
+            const float *proposals = &(proposals_flat(0));
             auto idx_flat = idx_tensor->flat<int>();
             int *idx = &(idx_flat(0));
             auto pts_cnt_flat = pts_cnt_tensor->flat<int>();
             int *pts_cnt = &(pts_cnt_flat(0));
-            auto subcube_location_flat = subcube_location_tensor->flat<float>();
-            float *subcube_location = &(subcube_location_flat(0));
-            queryCubePointLauncher(b,n,m,radius_,nsample_,subcube_num_,total_subcube_num_,xyz1,xyz2,idx,pts_cnt,subcube_location);
+            queryBoxes3dPointsLauncher(b,n,m,nsample_,xyz,proposals,idx,pts_cnt);
         }
     private:
-        float radius_;
         int nsample_;
-        int subcube_num_;
-        int total_subcube_num_;
 };
-REGISTER_KERNEL_BUILDER(Name("QueryCubePoint").Device(DEVICE_GPU), QueryCubePointGpuOp);
+REGISTER_KERNEL_BUILDER(Name("QueryBoxes3dPoints").Device(DEVICE_GPU), QueryBoxes3dPointsGpuOp);
+
 
 // QueryBallPointDynamicShape 
 void queryBallPointDynamicShapeLauncher(int b, int n, int m, int split_bin_num, int nsample, const float *xyz1, const float *xyz2, const float* radius, int *idx, int *pts_cnt, int* radius_idx, float* radius_rate);
@@ -437,40 +412,6 @@ class QueryDynamicRadiusForPointsGpuOp : public OpKernel {
 REGISTER_KERNEL_BUILDER(Name("QueryDynamicRadiusForPoints").Device(DEVICE_GPU), QueryDynamicRadiusForPointsGpuOp);
 
 
-// QueryTargetDistanceForPoints
-void queryTargetDistanceForPointsLauncher(int b, int n, int split_bin_num, const float* xyz1, const float* gt_boxes_3d, float* target_dist);
-class QueryTargetDistanceForPointsGpuOp : public OpKernel {
-    public:
-        explicit QueryTargetDistanceForPointsGpuOp(OpKernelConstruction* context) : OpKernel(context){
-            OP_REQUIRES_OK(context, context->GetAttr("split_bin_num", &split_bin_num_));
-            OP_REQUIRES(context, split_bin_num_ > 0, errors::InvalidArgument("QueryTargetDistanceForPointsGpuOp expects positive split_bin_num"));
-        }
-
-        void Compute(OpKernelContext* context) override {
-            const Tensor& xyz1_tensor = context->input(0);
-            OP_REQUIRES(context, xyz1_tensor.dims()==3 && xyz1_tensor.shape().dim_size(2)==3, errors::InvalidArgument("QueryTargetDistanceForPointsGpuOp expects (batch_size, npoint, 3) xyz1 shape."));
-            int b = xyz1_tensor.shape().dim_size(0);
-            int n = xyz1_tensor.shape().dim_size(1);
-
-            const Tensor& gt_boxes_3d_tensor = context->input(1);
-            OP_REQUIRES(context, gt_boxes_3d_tensor.dims()==3 && gt_boxes_3d_tensor.shape().dim_size(1)==n && gt_boxes_3d_tensor.shape().dim_size(2)==7, errors::InvalidArgument("QueryTargetDistanceForPointsGpuOp expects (batch_size, npoint, 7) radius shape."));
-
-            Tensor *target_dist_tensor = nullptr;
-            OP_REQUIRES_OK(context, context->allocate_output(0, TensorShape{b,n,split_bin_num_}, &target_dist_tensor));
-
-            auto xyz1_flat = xyz1_tensor.flat<float>();
-            const float *xyz1 = &(xyz1_flat(0));
-            auto gt_boxes_3d_flat = gt_boxes_3d_tensor.flat<float>();
-            const float *gt_boxes_3d = &(gt_boxes_3d_flat(0));
-
-            auto target_dist_flat = target_dist_tensor->flat<float>();
-            float *target_dist = &(target_dist_flat(0));
-            queryTargetDistanceForPointsLauncher(b,n,split_bin_num_,xyz1,gt_boxes_3d,target_dist);
-        }
-    private:
-        int split_bin_num_;
-};
-REGISTER_KERNEL_BUILDER(Name("QueryTargetDistanceForPoints").Device(DEVICE_GPU), QueryTargetDistanceForPointsGpuOp);
 
 // QueryBallPoint
 void queryBallPointLauncher(int b, int n, int m, float radius, int nsample, const float *xyz1, const float *xyz2, int *idx, int *pts_cnt);

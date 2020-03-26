@@ -17,6 +17,20 @@ def encode_angle2class_np(angle, num_class):
     # finally normalize residual angle to [0, 1]
     residual_angle = residual_angle / (2 * np.pi / num_class) 
     return class_id, residual_angle
+
+
+def encode_angle2class_tf(angle, num_class):
+    angle = tf.mod(angle, (2 * np.pi))
+
+    angle_per_class = 2*np.pi/float(num_class)
+    shifted_angle = tf.mod(angle+angle_per_class/2, 2*np.pi)
+    class_id_f = tf.floor(shifted_angle/angle_per_class)
+    class_id = tf.cast(class_id_f, tf.int32)
+    residual_angle = shifted_angle - \
+        (class_id_f * angle_per_class + angle_per_class/2)
+    # finally normalize residual angle to [0, 1]
+    residual_angle = residual_angle / angle_per_class
+    return class_id, residual_angle
     
 
 

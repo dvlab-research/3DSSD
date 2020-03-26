@@ -34,30 +34,35 @@ class EncoderDecoder:
         self.encoder = self.encoder_dict[self.regression_method]
         self.decoder = self.decoder_dict[self.regression_method]
 
-    def encode(self, center_xyz, gt_offset, batch_anchors_3d):
+    def encode(self, center_xyz, assigned_gt_boxes, batch_anchors_3d):
         """
         center_xyz: [bs, points_num, 3], points location
-        gt_offset: [bs, points_num, cls_num, 7]
-        batch_anchors_3d: [bs, points_num, cls_num, 6]
+        assigned_gt_boxes: [bs, points_num, cls_num, 7]
+        batch_anchors_3d: [bs, points_num, cls_num, 7]
         """
-        bs, points_num, cls_num, _ = gt_offset.get_shape().as_list()
-        gt_offset = gt_offset[:, :, :, :-1]
+        bs, points_num, cls_num, _ = assigned_gt_boxes.get_shape().as_list()
+        gt_offset = assigned_gt_boxes[:, :, :, :-1]
         gt_offset = tf.reshape(gt_offset, [bs, points_num * cls_num, 6])
-        batch_anchors_3d = tf.reshape(batch_anchors_3d, [bs, points_num * cls_num, -1])
+        reshape_anchors_3d = tf.reshape(batch_anchors_3d, [bs, points_num * cls_num, -1])
 
         gt_ctr, gt_size = tf.split(gt_offset, num_or_size_splits=2, axis=-1)
         if self.regression_method == 'Dist-Anchor-free':
             encoded_ctr, encoded_offset = self.encoder(gt_ctr, gt_size, center_xyz)
-        else:
-            anchor_ctr, anchor_size = tf.slice(batch_anchors_3d[:, :, :-1], num_or_size_splits=2, axis=-1)
+            gt_angle = assigned_gt_boxes[:, :, :, -1]
+        else: # anchor-based method
+            anchor_ctr, anchor_size = tf.slice(reshape_anchors_3d[:, :, :-1], num_or_size_splits=2, axis=-1)
             encoded_ctr, encoded_offset = self.encoder(gt_ctr, gt_size, anchor_ctr, anchor_size) 
+            gt_angle = assigned_gt_boxes[:, :, :, -1] - batch_anchors_3d[:, :, :, -1] 
 
         encoded_ctr = tf.reshape(encoded_ctr, [bs, points_num, cls_num, 3])
         encoded_offset = tf.reshape(encoded_offset, [bs, points_num, cls_num, 3])
 
+        # bs, points_num, cls_num
+        encoded_angle_cls, encoded_angle_res = encode_angle2class_tf(gt_angle, cfg.MODEL.ANGLE_CLS_NUM) 
+
         # bs, points_num, cls_num, 6
         target = tf.concat([encoded_ctr, encoded_offset], axis=-1)
-        return target
+        return target, encoded_angle_cls, encoded_angle_res
         
 
     def decode(self, center_xyz, det_offset, det_angle_cls, det_angle_res, is_training, batch_anchors_3d):

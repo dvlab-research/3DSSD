@@ -48,14 +48,15 @@ REGISTER_OP("CalcIou")
     });
 
 REGISTER_OP("CalcMatchingIou")
-    .Input("detections: float32") // [bs, num_dets, 7]
-    .Input("groundtruths: float32") // [bs, num_dets, 7]
-    .Output("iou_bev: float32") // [bs, num_dets]
-    .Output("iou_3d: float32") // [bs, num_dets] 
+    .Input("detections: float32") // [-1, 7]
+    .Input("groundtruths: float32") // [-1, 7]
+    .Output("iou_bev: float32") // [-1]
+    .Output("iou_3d: float32") // [-1] 
     .SetShapeFn([](::tensorflow::shape_inference::InferenceContext* c) {
-        ::tensorflow::shape_inference::ShapeHandle dims1; // [bs, num_dets, 7]
-        c->WithRank(c->input(0), 3, &dims1);
-        ::tensorflow::shape_inference::ShapeHandle output = c->MakeShape({c->Dim(dims1, 0), c->Dim(dims1, 1)}); // [bs, num_dets]
+        ::tensorflow::shape_inference::ShapeHandle dims1; // [-1, 7]
+        c->WithRank(c->input(0), 2, &dims1);
+        // [-1]
+        ::tensorflow::shape_inference::ShapeHandle output = c->MakeShape({c->Dim(dims1, 0)});
         c->set_output(0, output);
         c->set_output(1, output);
         return Status::OK();
@@ -178,8 +179,8 @@ class CalcIouOp: public OpKernel{
 REGISTER_KERNEL_BUILDER(Name("CalcIou").Device(DEVICE_CPU),CalcIouOp);
 
 
-void calc_intersections_matching_cpu(const float *dets, const float *gts, const int det_num, const int num_images, float* IoU3DMatrics, float* IoUBeVMatrics){
-    calc_intersections_matching(dets, gts, det_num, num_images, IoU3DMatrics, IoUBeVMatrics);
+void calc_intersections_matching_cpu(const float *dets, const float *gts, const int bs, float* IoU3DMatrics, float* IoUBeVMatrics){
+    calc_intersections_matching(dets, gts, bs, IoU3DMatrics, IoUBeVMatrics);
 }
 
 class CalcMatchingIouOp: public OpKernel{
@@ -188,18 +189,17 @@ class CalcMatchingIouOp: public OpKernel{
 
         void Compute(OpKernelContext * context) override {
             const Tensor& detections_tensor=context->input(0);
-            OP_REQUIRES(context, detections_tensor.dims()==3 && detections_tensor.shape().dim_size(2)==7, errors::InvalidArgument("Calculate IoU expects (bs, -1, 7) detections shape"));
+            OP_REQUIRES(context, detections_tensor.dims()==2 && detections_tensor.shape().dim_size(1)==7, errors::InvalidArgument("Calculate IoU expects (-1, 7) detections shape"));
             int bs = detections_tensor.shape().dim_size(0);
-            int det_num = detections_tensor.shape().dim_size(1);
             
             const Tensor& groundtruths_tensor = context->input(1);
-            OP_REQUIRES(context, groundtruths_tensor.dims()==3 && groundtruths_tensor.shape().dim_size(0)==bs && groundtruths_tensor.shape().dim_size(1) == det_num && groundtruths_tensor.shape().dim_size(2)==7, errors::InvalidArgument("Calculate IoU expects (bs, -1, 7) gt shape"));
+            OP_REQUIRES(context, groundtruths_tensor.dims()==2 && groundtruths_tensor.shape().dim_size(0)==bs && groundtruths_tensor.shape().dim_size(1) == 7, errors::InvalidArgument("Calculate IoU expects (-1, 7) gt shape"));
 
             Tensor* iou_bev_tensor = nullptr;
             Tensor* iou_3d_tensor = nullptr; 
 
-            OP_REQUIRES_OK(context, context->allocate_output(0, TensorShape{bs, det_num}, &iou_bev_tensor));
-            OP_REQUIRES_OK(context, context->allocate_output(1, TensorShape{bs, det_num}, &iou_3d_tensor));
+            OP_REQUIRES_OK(context, context->allocate_output(0, TensorShape{bs}, &iou_bev_tensor));
+            OP_REQUIRES_OK(context, context->allocate_output(1, TensorShape{bs}, &iou_3d_tensor));
 
             auto detections_flat = detections_tensor.flat<float>();
             const float *detections = &(detections_flat(0));
@@ -211,7 +211,7 @@ class CalcMatchingIouOp: public OpKernel{
             auto iou_3d_flat = iou_3d_tensor->flat<float>();
             float* iou_3d = &(iou_3d_flat(0));
 
-            calc_intersections_matching_cpu(detections, groundtruths, det_num, bs, iou_3d, iou_bev);
+            calc_intersections_matching_cpu(detections, groundtruths, bs, iou_3d, iou_bev);
         }
 };
 REGISTER_KERNEL_BUILDER(Name("CalcMatchingIou").Device(DEVICE_CPU),CalcMatchingIouOp);

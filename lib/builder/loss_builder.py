@@ -3,8 +3,8 @@ import numpy as np
 
 from core.config import cfg
 from utils.box_3d_utils import transfer_box3d_to_corners
-from utils.tf_ops.grouping.tf_grouping import query_corners_point
 from utils.tf_ops.sampling.tf_sampling import gather_point
+from utils.tf_ops.evaluation.tf_evaluate import calc_iou_match_warper 
 from utils.rotation_util import rotate_points
 from np_functions.gt_sampler import vote_targets_np
 
@@ -25,22 +25,25 @@ class LossBuilder:
         self.ctr_ness_range = self.loss_cfg.CLASSIFICATION_LOSS.CENTER_NESS_LABEL_RANGE
         self.cls_activation = self.loss_cfg.CLS_ACTIVATION
 
-        if self.cls_loss_type == 'Center-ness':
+        if self.cls_loss_type == 'Center-ness' or self.cls_loss_type == 'Focal-loss':
             assert self.cls_activation == 'Sigmoid'
 
         self.cls_list = cfg.DATASET.KITTI.CLS_LIST
 
 
-    def forward(self, index, label_dict, pred_dict, placeholders, vote_loss=False, attr_velo_loss=False):
+    def forward(self, index, label_dict, pred_dict, placeholders, vote_loss=False, attr_velo_loss=False, iou_loss=False):
         self.cls_loss(index, label_dict, pred_dict)
         self.corner_loss(index, label_dict, pred_dict)
         self.offset_loss(index, label_dict, pred_dict)
         self.angle_loss(index, label_dict, pred_dict)
 
         if vote_loss:
-            self.vote_loss(label_dict, pred_dict, placeholders)
+            self.vote_loss(index, pred_dict, placeholders)
         if attr_velo_loss:
             self.velo_attr_loss(index, label_dict, pred_dict)
+        if iou_loss:
+            self.iou_loss(index, label_dict, pred_dict)
+        
 
 
     def cls_loss(self, index, label_dict, pred_dict):
@@ -64,6 +67,10 @@ class LossBuilder:
             else: 
                 cls_loss = tf.nn.sigmoid_cross_entropy_with_logits(labels=gt_cls, logits=pred_cls)
                 cls_loss = tf.reduce_mean(cls_loss, axis=-1)
+
+        elif self.cls_loss_type == 'Focal-loss': # Focal-loss producer
+            cls_loss = model_util.focal_loss_producer(pred_cls, gt_cls)
+            cls_loss = tf.reduce_mean(cls_loss, axis=-1)
                 
         elif self.cls_loss_type == 'Center-ness': # Center-ness label
             base_xyz = pred_dict[maps_dict.KEY_OUTPUT_XYZ][index]
@@ -120,23 +127,47 @@ class LossBuilder:
         return ctr_ness
         
 
-    def vote_loss(self, label_dict, pred_dict, placeholders):
-        vote_times = len(pred_dict[maps_dict.PRED_VOTE_OFFSET])
-        for index in range(vote_times):
-            vote_offset = pred_dict[maps_dict.PRED_VOTE_OFFSET][index]
-            vote_base = pred_dict[maps_dict.PRED_VOTE_BASE][index]    
-            bs, pts_num, _ = vote_offset.get_shape().as_list()
-            gt_boxes_3d = placeholders[maps_dict.PL_LABEL_BOXES_3D]
-            vote_mask, vote_target = tf.py_func(vote_targets_np, [vote_base, gt_boxes_3d], [tf.float32, tf.float32]) 
-            vote_mask = tf.reshape(vote_mask, [bs, pts_num])
-            vote_target = tf.reshape(vote_target, [bs, pts_num, 3])
+    def iou_loss(self, index, label_dict, pred_dict):
+        pmask = label_dict[maps_dict.GT_PMASK][index]
+        nmask = label_dict[maps_dict.GT_NMASK][index]
+        gt_cls = label_dict[maps_dict.GT_CLS][index] # bs, pts_num
+        gt_cls = tf.cast(tf.one_hot(gt_cls - 1, depth=len(self.cls_list), on_value=1, off_value=0, axis=-1), tf.float32) # [bs, pts_num, cls_num]
+
+        assigned_gt_boxes_3d = label_dict[maps_dict.GT_BOXES_ANCHORS_3D][index]
+        proposals = pred_dict[maps_dict.KEY_ANCHORS_3D][index]
+
+        # bs, proposal_num, cls_num
+        target_iou_bev, target_iou_3d = calc_iou_match_warper(proposals, assigned_gt_boxes_3d) 
+        # then normalize target_iou to [-1, 1]
+        target_iou_3d = target_iou_3d * 2. - 1.
+        target_iou_3d = target_iou_3d * gt_cls
+
+        pred_iou = pred_dict[maps_dict.PRED_IOU_3D_VALUE][index]
+
+        norm_param = tf.maximum(1., tf.reduce_sum(pmask))
+
+        iou_loss = model_util.huber_loss(pred_iou - target_iou_3d, delta=1.)
+        iou_loss = tf.reduce_mean(iou_loss, axis=-1) * pmask 
+        iou_loss = tf.identity(tf.reduce_sum(iou_loss) / norm_param, 'iou_loss%d'%index)
+        tf.summary.scalar('iou_loss%d'%index, iou_loss)
+        tf.add_to_collection(tf.GraphKeys.LOSSES, iou_loss)
 
 
-            vote_loss = tf.reduce_sum(model_util.huber_loss(vote_target - vote_offset, delta=1.), axis=-1) * vote_mask
-            vote_loss = tf.reduce_sum(vote_loss) / tf.maximum(1., tf.reduce_sum(vote_mask))
-            vote_loss = tf.identity(vote_loss, 'vote_loss%d'%index)
-            tf.summary.scalar('vote_loss%d'%index, vote_loss)
-            tf.add_to_collection(tf.GraphKeys.LOSSES, vote_loss)
+    def vote_loss(self, index, pred_dict, placeholders):
+        vote_offset = pred_dict[maps_dict.PRED_VOTE_OFFSET][index]
+        vote_base = pred_dict[maps_dict.PRED_VOTE_BASE][index]    
+        bs, pts_num, _ = vote_offset.get_shape().as_list()
+        gt_boxes_3d = placeholders[maps_dict.PL_LABEL_BOXES_3D]
+        vote_mask, vote_target = tf.py_func(vote_targets_np, [vote_base, gt_boxes_3d], [tf.float32, tf.float32]) 
+        vote_mask = tf.reshape(vote_mask, [bs, pts_num])
+        vote_target = tf.reshape(vote_target, [bs, pts_num, 3])
+
+
+        vote_loss = tf.reduce_sum(model_util.huber_loss(vote_target - vote_offset, delta=1.), axis=-1) * vote_mask
+        vote_loss = tf.reduce_sum(vote_loss) / tf.maximum(1., tf.reduce_sum(vote_mask))
+        vote_loss = tf.identity(vote_loss, 'vote_loss%d'%index)
+        tf.summary.scalar('vote_loss%d'%index, vote_loss)
+        tf.add_to_collection(tf.GraphKeys.LOSSES, vote_loss)
 
 
     def velo_attr_loss(self, index, label_dict, pred_dict):

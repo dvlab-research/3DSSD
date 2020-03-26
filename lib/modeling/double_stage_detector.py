@@ -10,13 +10,13 @@ from modeling.head_builder import HeadBuilder
 from builder.encoder_builder import EncoderDecoder
 from builder.postprocessor import PostProcessor
 from builder.loss_builder import LossBuilder
+from builder.points_pooler import PointsPooler
 
 from utils.box_3d_utils import transfer_box3d_to_corners 
-from utils.model_util import *
 
 import dataset.maps_dict as maps_dict
 
-class SingleStageDetector:
+class DoubleStageDetector:
     def __init__(self, batch_size, is_training):
         self.batch_size = batch_size
         self.is_training = is_training
@@ -34,36 +34,61 @@ class SingleStageDetector:
         self.anchor_builder = Anchors(0, self.cls_list)
 
         # encoder_decoder
-        self.encoder_decoder = EncoderDecoder(0)
+        self.encoder_decoder_list = [EncoderDecoder(0), EncoderDecoder(1)]
 
         # postprocessor
-        self.postprocessor = PostProcessor(0, len(self.cls_list))
+        self.postprocessor_list = [PostProcessor(0, 1), PostProcessor(1, len(self.cls_list))]
 
         # loss builder
-        self.loss_builder = LossBuilder(0)
-
-        # head builder
-        self.iou_loss = False
-        self.heads = []
-        head_cfg = cfg.MODEL.NETWORK.FIRST_STAGE.HEAD
-        for i in range(len(head_cfg)):
-            self.heads.append(HeadBuilder(self.batch_size, 
-                self.anchor_builder.anchors_num, 0, head_cfg[i], is_training))
-            if self.heads[-1].layer_type == 'IoU': self.iou_loss = True
+        self.loss_builder_list = [LossBuilder(0), LossBuilder(1)]
 
         # target assigner
-        self.target_assigner = TargetAssigner(0) # first stage
+        self.target_assigner_list = [TargetAssigner(0), TargetAssigner(1)]
 
-        self.vote_loss = False
-        # layer builder
+        # points pooler
+        pool_cfg = cfg.MODEL.NETWORK.FIRST_STAGE.POINTS_POOLER
+        self.pool_mask_thresh = cfg.MODEL.NETWORK.FIRST_STAGE.POOLER_MASK_THRESHOLD
+        self.points_pooler = PointsPooler(pool_cfg)
+
+        ############### RPN head/network definition ##############
+        ### head
+        self.rpn_iou_loss = False
+        self.rpn_heads = []
+        head_cfg = cfg.MODEL.NETWORK.FIRST_STAGE.HEAD
+        for i in range(len(head_cfg)):
+            self.rpn_heads.append(HeadBuilder(self.batch_size, 
+                self.anchor_builder.anchors_num, 0, head_cfg[i], is_training))
+            if self.rpn_heads[-1].layer_type == 'IoU': self.rpn_iou_loss = True
+        ### network
+        self.rpn_vote_loss = False
+        self.rpn_layers = []
         layer_cfg = cfg.MODEL.NETWORK.FIRST_STAGE.ARCHITECTURE
-        layers = []
         for i in range(len(layer_cfg)):
-            layers.append(LayerBuilder(i, self.is_training, layer_cfg)) 
-            if layers[-1].layer_type == 'Vote_Layer': self.vote_loss = True
-        self.layers = layers
+            self.rpn_layers.append(LayerBuilder(i, self.is_training, layer_cfg)) 
+            if self.rpn_layers[-1].layer_type == 'Vote_Layer': self.rpn_vote_loss = True
 
-        self.attr_velo_loss = cfg.MODEL.FIRST_STAGE.PREDICT_ATTRIBUTE_AND_VELOCITY 
+        ############### RCNN-stage head/network definition ##############
+        ### head
+        self.rcnn_iou_loss = False
+        self.rcnn_heads = []
+        head_cfg = cfg.MODEL.NETWORK.SECOND_STAGE.HEAD
+        for i in range(len(head_cfg)):
+            self.rcnn_heads.append(HeadBuilder(self.batch_size, 
+                1, 1, head_cfg[i], is_training))
+            if self.rcnn_heads[-1].layer_type == 'IoU': self.rcnn_iou_loss = True
+        ### network
+        self.rcnn_vote_loss = False
+        self.rcnn_layers = []
+        layer_cfg = cfg.MODEL.NETWORK.SECOND_STAGE.ARCHITECTURE
+        for i in range(len(layer_cfg)):
+            self.rcnn_layers.append(LayerBuilder(i, self.is_training, layer_cfg)) 
+            if self.rcnn_layers[-1].layer_type == 'Vote_Layer': self.rcnn_vote_loss = True
+
+        self.heads = [self.rpn_heads, self.rcnn_heads]
+        self.layers = [self.rpn_layers, self.rcnn_layers]
+        self.vote_loss = [self.rpn_vote_loss, self.rcnn_vote_loss]
+        self.iou_loss = [self.rpn_iou_loss, self.rcnn_iou_loss]
+        self.attr_velo_loss = [False, cfg.MODEL.SECOND_STAGE.PREDICT_ATTRIBUTE_AND_VELOCITY]
 
         self.__init_dict()
 
@@ -95,7 +120,7 @@ class SingleStageDetector:
         self.output[maps_dict.PRED_3D_VELOCITY] = []
 
         self.prediction_keys = self.output.keys()
-        
+
         self.labels = dict()
         self.labels[maps_dict.GT_CLS] = []
         self.labels[maps_dict.GT_OFFSET] = []
@@ -110,15 +135,23 @@ class SingleStageDetector:
         self.labels[maps_dict.GT_NMASK] = []
         self.labels[maps_dict.CORNER_LOSS_GT_BOXES_CORNERS] = []
 
-    def network_forward(self, point_cloud, bn_decay):
+    def network_forward(self, point_cloud, index, bn_decay,
+        xyz_list=[], feature_list=[], fps_idx_list=[]):
+
         l0_xyz = tf.slice(point_cloud, [0,0,0], [-1,-1,3])
         l0_points = tf.slice(point_cloud, [0,0,3], [-1,-1,-1])
-        xyz_list, feature_list, fps_idx_list = [l0_xyz], [l0_points], [None]
-        for layer in self.layers:
+      
+        xyz_list.append(l0_xyz)
+        feature_list.append(l0_points)
+        fps_idx_list.append(None)
+
+        layers, heads = self.layers[index], self.heads[index] 
+
+        for layer in layers:
             xyz_list, feature_list, fps_idx_list = layer.build_layer(xyz_list, feature_list, fps_idx_list, bn_decay, self.output)
 
         cur_head_start_idx = len(self.output[maps_dict.KEY_OUTPUT_XYZ])
-        for head in self.heads:
+        for head in heads:
             head.build_layer(xyz_list, feature_list, bn_decay, self.output)
         merge_head_prediction(cur_head_start_idx, self.output, self.prediction_keys)
 
@@ -126,23 +159,52 @@ class SingleStageDetector:
         points_input_det = self.placeholders[maps_dict.PL_POINTS_INPUT]
 
         # forward the point cloud
-        self.network_forward(points_input_det, bn_decay)
- 
+        self.network_forward(points_input_det, 0, bn_decay)
+
         # generate anchors
         base_xyz = self.output[maps_dict.KEY_OUTPUT_XYZ][-1]
         anchors = self.anchor_builder.generate(base_xyz) # [bs, pts_num, 1/cls_num, 7]
         self.output[maps_dict.KEY_ANCHORS_3D].append(anchors)
 
         if self.is_training: # training mode
-            self.train_forward(-1, anchors) 
-        else: # testing mode
-            self.test_forward(-1, anchors)
+            self.train_forward(-1, 0, anchors) 
+
+        # decode proposals
+        self.test_forward(-1, 0, cfg.MODEL.FIRST_STAGE, anchors)
+
+        # [bs, proposal_num, 7]
+        proposals = self.output[maps_dict.PRED_3D_BBOX][-1]
+        # [bs, proposal_num, 1, 7]
+        self.output[maps_dict.KEY_ANCHORS_3D].append(tf.expand_dims(proposals, axis=2))
+
+        # pool
+        base_feature = self.output[maps_dict.KEY_OUTPUT_FEATURE][-1]
+        base_mask = self.output[maps_dict.PRED_3D_SCORE][-1]
+        base_mask = tf.cast(tf.greater_equal(base_mask, self.pool_mask_thresh), tf.float32)
+        base_mask = tf.expand_dims(base_mask, axis=-1) # [bs, proposal_num, 1]
+        pool_feature, pool_mask = self.points_pooler.pool(base_xyz, base_feature, base_mask, proposals, self.is_training, bn_decay) # [bs * proposal_num, sample_num, 3+c]
+
+        # initialize the list of stage-2 with proposal center
+        xyz_list, feature_list, fps_idx_list = [proposals[:, :, :3]], [None], [None]
+
+        # second-stage forward
+        self.network_forward(pool_feature, 1, bn_decay,
+                             xyz_list, feature_list, fps_idx_list)
+
+        if self.is_training: # training mode
+            self.train_forward(-1, 1, proposals, valid_mask=pool_mask) 
+        else:
+            self.test_forward(-1, 1, cfg.MODEL.SECOND_STAGE, proposals, valid_mask=pool_mask)
 
 
-    def train_forward(self, index, anchors):
+    def train_forward(self, index, stage_index, anchors, valid_mask=None):
         """
         Calculating loss
         """
+        encoder_decoder = self.encoder_decoder_list[stage_index]
+        loss_builder = self.loss_builder_list[stage_index]
+        target_assigner = self.target_assigner_list[stage_index]
+
         base_xyz = self.output[maps_dict.KEY_OUTPUT_XYZ][index]
         pred_offset = self.output[maps_dict.PRED_OFFSET][index]
         pred_angle_cls = self.output[maps_dict.PRED_ANGLE_CLS][index]
@@ -161,12 +223,17 @@ class SingleStageDetector:
             gt_velocity = self.placeholders[maps_dict.PL_LABEL_VELOCITY]
         else: gt_velocity = None
 
-        returned_list = self.target_assigner.assign(base_xyz, anchors, gt_boxes_3d, gt_classes, gt_angle_cls, gt_angle_res, gt_velocity, gt_attributes)
+        returned_list = target_assigner.assign(base_xyz, anchors, gt_boxes_3d, gt_classes, gt_angle_cls, gt_angle_res, gt_velocity, gt_attributes)
 
         assigned_idx, assigned_pmask, assigned_nmask, assigned_gt_boxes_3d, assigned_gt_labels, assigned_gt_angle_cls, assigned_gt_angle_res, assigned_gt_velocity, assigned_gt_attribute = returned_list
 
+        if valid_mask is not None:
+            valid_mask = tf.cast(valid_mask, tf.float32)
+            assigned_pmask = assigned_pmask * valid_mask
+            assigned_nmask = assigned_nmask * valid_mask
+
         # encode offset
-        assigned_gt_offset, assigned_gt_angle_cls, assigned_gt_angle_res = self.encoder_decoder.encode(base_xyz, assigned_gt_boxes_3d, anchors)
+        assigned_gt_offset, assigned_gt_angle_cls, assigned_gt_angle_res = encoder_decoder.encode(base_xyz, assigned_gt_boxes_3d, anchors)
 
         # corner_loss
         corner_loss_angle_cls = tf.cast(tf.one_hot(assigned_gt_angle_cls, depth=cfg.MODEL.ANGLE_CLS_NUM, on_value=1, off_value=0, axis=-1), tf.float32) # bs, pts_num, cls_num, -1
@@ -187,10 +254,13 @@ class SingleStageDetector:
         self.labels[maps_dict.GT_PMASK].append(assigned_pmask)
         self.labels[maps_dict.GT_NMASK].append(assigned_nmask)
 
-        self.loss_builder.forward(index, self.labels, self.output, self.placeholders, self.vote_loss, self.attr_velo_loss, self.iou_loss)
+        loss_builder.forward(index, self.labels, self.output, self.placeholders, self.vote_loss[stage_index], self.attr_velo_loss[stage_index], self.iou_loss[stage_index])
 
 
-    def test_forward(self, index, anchors):
+    def test_forward(self, index, stage_index, stage_cfg, anchors, valid_mask=None):
+        encoder_decoder = self.encoder_decoder_list[stage_index]
+        postprocessor = self.postprocessor_list[stage_index] 
+
         base_xyz = self.output[maps_dict.KEY_OUTPUT_XYZ][index]
 
         pred_cls = self.output[maps_dict.PRED_CLS][index] # [bs, points_num, cls_num + 1/0]
@@ -199,10 +269,10 @@ class SingleStageDetector:
         pred_angle_res = self.output[maps_dict.PRED_ANGLE_RES][index]
 
         # decode predictions
-        pred_anchors_3d = self.encoder_decoder.decode(base_xyz, pred_offset, pred_angle_cls, pred_angle_res, self.is_training, anchors) # [bs, points_num, cls_num, 7]
+        pred_anchors_3d = encoder_decoder.decode(base_xyz, pred_offset, pred_angle_cls, pred_angle_res, self.is_training, anchors) # [bs, points_num, cls_num, 7]
         
         # decode classification
-        if cfg.MODEL.FIRST_STAGE.CLS_ACTIVATION == 'Softmax':
+        if stage_cfg.CLS_ACTIVATION == 'Softmax':
             # softmax 
             pred_score = tf.nn.softmax(pred_cls)
             pred_score = tf.slice(pred_score, [0, 0, 1], [-1, -1, -1])
@@ -210,9 +280,13 @@ class SingleStageDetector:
             pred_score = tf.nn.sigmoid(pred_cls)
 
         # using IoU branch proposed by sparse-to-dense
-        if self.iou_loss:
+        if self.iou_loss[stage_index]:
             pred_iou = self.output[maps_dict.PRED_IOU_3D_VALUE][index]
             pred_score = pred_score * pred_iou
+
+        if valid_mask is not None:
+            valid_mask = tf.cast(valid_mask, tf.float32)
+            pred_score = pred_score * valid_mask
 
         if len(self.output[maps_dict.PRED_ATTRIBUTE]) <= 0:
             pred_attribute = None

@@ -2,7 +2,7 @@ import numpy as np
 import tensorflow as tf
 
 from core.config import cfg
-from utils.tf_ops.grouping.tf_grouping import group_point
+from utils.tf_ops.grouping.tf_grouping import group_point, query_points_iou
 from utils.tf_ops.evaluation.tf_evaluate import calc_iou
 import np_functions.gt_sampler as gt_sampler
 
@@ -102,18 +102,14 @@ class TargetAssigner:
         gt_num = tf.shape(gt_boxes_3d)[1]
         anchors_3d_reshape = tf.reshape(anchors_3d, [bs, points_num * cls_num, 7])
 
-        # first change the angle in gt_boxes_3d to zeros, bs, gt_num, 7
-        gt_boxes_anchor = tf.slice(gt_boxes_3d, [0, 0, 0], [-1, -1, 6])
-        gt_boxes_angle = tf.slice(gt_boxes_3d, [0, 0, 6], [-1, -1, -1])
-        gt_zero_angle = tf.zeros_like(gt_boxes_angle)
-        gt_boxes_zero_angle = tf.concat([gt_boxes_anchor, gt_zero_angle], axis=-1)
-
         # bs, pts_num * cls_num, gt_num
-        iou_bev, iou_3d = calc_iou(anchors_3d_reshape, gt_boxes_zero_angle)
+        iou_bev, iou_3d = calc_iou(anchors_3d_reshape, gt_boxes_3d)
         if self.iou_sample_type == 'BEV':
             iou_matrix = iou_bev
         elif self.iou_sample_type == '3D':
             iou_matrix = iou_3d 
+        elif self.iou_sample_type == 'Point': # point_iou
+            iou_matrix = query_points_iou(points, anchors_3d_reshape, gt_boxes_3d, iou_3d)
         iou_matrix = tf.reshape(iou_matrix, [bs, points_num, cls_num, gt_num])
         
         assigned_idx, assigned_pmask, assigned_nmask = tf.py_func(gt_sampler.iou_assign_targets_anchors_np, [iou_matrix, points, anchors_3d, gt_boxes_3d, gt_labels, self.minibatch_size, self.positive_ratio, self.pos_iou, self.neg_iou, self.effective_sample_range], [tf.int32, tf.float32, tf.float32])

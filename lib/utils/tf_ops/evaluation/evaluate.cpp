@@ -1193,17 +1193,18 @@ bool calc_intersections(const float *dets, const float *gts, const int det_num, 
 }
 
 
-bool calc_intersections_matching(const float *dets, const float *gts, const int det_num, const int num_images, float* IoU3DMatrics, float* IoUBeVMatrics){
-    // dets: [bs, n, 7], gts: [bs, m, 7]
-    // det_num = n, gt_num = m 
-    // return : [bs, n, m]
+bool calc_intersections_matching(const float *dets, const float *gts, const int bs, float* IoU3DMatrics, float* IoUBeVMatrics){
+    // dets: [-1, 7], gts: [-1, 7]
+    // return : [-1]
     vector<vector<tDetection>> detections;
     vector<vector<tGroundtruth>> groundtruth; 
     vector<tDetection> cur_detections;
     vector<tGroundtruth> cur_groundtruth;
 
     float iou_bev, iou_3d;
-    int img_base_idx, det_base_idx;
+    int img_base_idx;
+
+    int det_num = bs, num_images=1;
 
     // load Detection result first
     detections = loadDetections_iou(dets, det_num, num_images);
@@ -1216,11 +1217,10 @@ bool calc_intersections_matching(const float *dets, const float *gts, const int 
         
         img_base_idx = i * det_num;
         for (int n = 0; n < det_num; n++){
-            det_base_idx = img_base_idx;
             iou_bev = groundBoxOverlap(cur_detections[n], cur_groundtruth[n]); 
             iou_3d = box3DOverlap(cur_detections[n], cur_groundtruth[n]);
-            IoUBeVMatrics[det_base_idx + n] = iou_bev;
-            IoU3DMatrics[det_base_idx + n] = iou_3d; 
+            IoUBeVMatrics[img_base_idx + n] = iou_bev;
+            IoU3DMatrics[img_base_idx + n] = iou_3d; 
         }
     }
 }

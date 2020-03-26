@@ -19,6 +19,32 @@ class PostProcessor:
         self.nms_threshold = self.postprocessor_cfg.NMS_THRESH
 
         self.cls_num = cls_num
+   
+    
+    def class_unaware_format(self, pred_anchors_3d, pred_score):
+        """ (for rpn propose)
+        Change prediction format from class-aware-format to class-ignorance-format
+        pred_anchors_3d: [bs, points_num, 1/cls_num, 7]
+        pred_score: [bs, points_num, cls_num]
+
+        return: pred_anchors_3d: [bs, points_num, 1, 7]
+                pred_score: [bs, points_num, 1]
+        """ 
+        unaware_pred_score = tf.reduce_max(pred_score, axis=-1, keepdims=True)
+        cls_num = pred_anchors_3d.get_shape().as_list()[2]
+        if cls_num == 1:
+            return pred_anchors_3d, unaware_pred_score
+
+        # class-aware in boundingbox prediction
+        pred_cls = tf.argmax(pred_score, axis=-1)
+        pred_cls_onehot = tf.cast(tf.one_hot(pred_cls, depth=cls_num, on_value=1, off_value=0, axis=-1), tf.float32)
+        # bs, pts_num, cls_num, 7
+        unaware_pred_anchors_3d = pred_anchors_3d * tf.expand_dims(pred_cls_onehot, axis=-1)
+        unaware_pred_anchors_3d = tf.reduce_sum(unaware_pred_anchors_3d, axis=2, keepdims=True)
+        return unaware_pred_anchors_3d, unaware_pred_score
+
+    
+
 
     def forward(self, pred_anchors_3d, pred_score, output_dict, pred_attribute=None, pred_velocity=None):
         """
@@ -27,6 +53,11 @@ class PostProcessor:
         pred_attribute: [bs, points_num, 1/cls_num, 8]
         pred_velocity: [bs, points_num, 1/cls_num, 2]
         """
+        cls_num = pred_score.get_shape().as_list()[-1] 
+        if cls_num != self.cls_num: # format predictions to class-unaware predictions
+            assert pred_attribute == None and pred_velocity == None, 'Not support the predictions of attribute and velocity in RPN phase'
+            pred_anchors_3d, pred_score = self.class_unaware_format(pred_anchors_3d, pred_score)
+
         pred_anchors_3d_list = tf.unstack(pred_anchors_3d, axis=0)
         pred_scores_list = tf.unstack(pred_score, axis=0)
 

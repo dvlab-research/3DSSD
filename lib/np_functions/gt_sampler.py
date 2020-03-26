@@ -120,8 +120,11 @@ def iou_assign_targets_anchors_np(batch_iou_matrix, batch_points, batch_anchors_
         assigned_idx = np.tile(np.reshape(sampled_gt_idx, [pts_num, 1, 1]), [1, cls_num, 1])
         iou_mask = np.tile(np.reshape(np.arange(len(filter_idx)), [1, 1, len(filter_idx)]), [pts_num, cls_num, 1]) # [pts_num, cls_num, len(filter_idx)]
         iou_matrix = np.sum(np.equal(iou_mask, assigned_idx).astype(np.float32) * iou_matrix, axis=-1) # [pts_num, cls_num]
-        label_mask = np.tile(np.reshape(np.arange(cls_num), [1, cls_num]), [pts_num, 1])
-        label_mask = np.equal(label_mask, assigned_gt_label[:, np.newaxis]).astype(np.float32)
+        if cls_num > 1:
+            label_mask = np.tile(np.reshape(np.arange(cls_num), [1, cls_num]), [pts_num, 1])
+            label_mask = np.equal(label_mask, assigned_gt_label[:, np.newaxis]).astype(np.float32)
+        else: 
+            label_mask = np.ones([pts_num, cls_num], dtype=np.float32)
         iou_matrix = iou_matrix * label_mask + (1-label_mask) * np.ones_like(iou_matrix) * -1 # count and ignored
 
         pmask = np.greater_equal(iou_matrix, pos_iou) # [pts_num, gt_num]

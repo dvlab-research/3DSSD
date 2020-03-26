@@ -34,9 +34,22 @@ ops.NoGradient('CalcIou')
 
 def calc_iou_match(detections, groundtruths):
     '''
-    detections: [bs, dets_num, 7]
-    groundtruths: [bs, dets_num, 7]
+    detections: [-1, 7]
+    groundtruths: [-1, 7]
     '''
     iou_bev, iou_3d = evaluate_module.calc_matching_iou(detections, groundtruths)
     return iou_bev, iou_3d
 ops.NoGradient('CalcMatchingIou')
+
+
+def calc_iou_match_warper(detections, groundtruths):
+    """
+    detections: [..., 7]
+    groundtruths: [..., 7]
+    """
+    original_shape = tf.shape(detections)[:-1]
+    iou_bev, iou_3d = calc_iou_match(tf.reshape(detections, [-1, 7]), 
+                                     tf.reshape(groundtruths, [-1, 7]))
+    iou_bev = tf.reshape(iou_bev, original_shape)
+    iou_3d = tf.reshape(iou_3d, original_shape)
+    return iou_bev, iou_3d

@@ -36,7 +36,7 @@ class LayerBuilder:
         self.vote_ctr_index = self.layer_architecture[14]
         self.aggregation_channel = self.layer_architecture[15]
 
-        if self.layer_type in ['SA_Layer', 'Vote_Layer']:
+        if self.layer_type in ['SA_Layer', 'Vote_Layer', 'SA_Layer_SSG_Last']:
             assert len(self.xyz_index) == 1
         elif self.layer_type == 'FP_Layer':
             assert len(self.xyz_index) == 2
@@ -64,18 +64,32 @@ class LayerBuilder:
         else: vote_ctr = None
 
         if self.layer_type == 'SA_Layer':
-            new_xyz, new_points, new_fps_idx = pointnet_sa_module_msg(xyz_input[0], feature_input[0], self.radius_list, self.nsample_list, 
-                                                                      self.mlp_list, self.is_training, bn_decay, self.bn, 
-                                                                      self.fps_sample_range_list, self.fps_method_list, self.npoint_list, 
-                                                                      former_fps_idx, self.use_attention, self.scope, 
-                                                                      self.dilated_group, vote_ctr, self.aggregation_channel)
+            new_xyz, new_points, new_fps_idx = pointnet_sa_module_msg(
+                xyz_input[0], feature_input[0], 
+                self.radius_list, self.nsample_list, 
+                self.mlp_list, self.is_training, bn_decay, self.bn, 
+                self.fps_sample_range_list, self.fps_method_list, self.npoint_list, 
+                former_fps_idx, self.use_attention, self.scope, 
+                self.dilated_group, vote_ctr, self.aggregation_channel)
             xyz_list.append(new_xyz)
             feature_list.append(new_points)
             fps_idx_list.append(new_fps_idx)
 
+        elif self.layer_type == 'SA_Layer_SSG_Last':
+            new_points = pointnet_sa_module(
+                xyz_input[0], feature_input[0],
+                self.mlp_list, self.is_training, bn_decay,
+                self.bn, self.scope,
+            )
+            xyz_list.append(None)
+            feature_list.append(new_points)
+            fps_idx_list.append(None)
+
         elif self.layer_type == 'FP_Layer':
             new_points = pointnet_fp_module(xyz_input[0], xyz_input[1], feature_input[0], feature_input[1], self.mlp_list, self.is_training, bn_decay, self.scope, self.bn)
+            xyz_list.append(xyz_input[0])
             feature_list.append(new_points)
+            fps_idx_list.append(None)
         
         elif self.layer_type == 'Vote_Layer':
             new_xyz, new_points, ctr_offsets = vote_layer(xyz_input[0], feature_input[0], self.mlp_list, self.is_training, bn_decay, self.bn, self.scope)

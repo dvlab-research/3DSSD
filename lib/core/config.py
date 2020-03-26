@@ -208,7 +208,7 @@ __C.MODEL.NETWORK.FIRST_STAGE = AttrDict()
 # 6: fps_sample_range_list 7: fps_method_list (F-FPS, D-FPS, FS) 8: fps_npoint_list 
 # 9: former_fps_idx: (fps_idx from which layer)
 # 10: use_attention: whether using attention in grouping points
-# 11: layer type: [SA layer, VoteLayer]
+# 11: layer type: ['SA_Layer', 'Vote_Layer', 'FP_Layer', 'SA_Layer_SSG_Last']
 # 12: scope, 
 # 13: dilated_group
 # 14: deformable-center, /e.g: votenet center
@@ -238,11 +238,28 @@ __C.MODEL.NETWORK.FIRST_STAGE.ARCHITECTURE = [
 ################################################# 
 # for each layer
 # 0: use xyz from which layer, 1: use feature from which layer
-# 2: mlp_list
-# 3: bn
-# 4: scope
+# 2: composed by which op: 'conv1d', 'conv2d', 'fc', etc
+# 3: mlp_list
+# 4: bn
+# 5: layer type: 'Det' or 'IoU' 
+# 6: scope
 ################################################# 
-__C.MODEL.NETWORK.FIRST_STAGE.HEAD = [[6], [6], [128,], True, 'detection_head']
+__C.MODEL.NETWORK.FIRST_STAGE.HEAD = [[[6], [6], 'conv1d', [128,], True, 'Det', 'detection_head']]
+
+#################################################
+# PointsPooler
+# 0: layer type: 'RegionPool'(PointRCNN), 'PointsPool'(STD)
+# 1: additional information keys: ['r', 'mask', 'dist']
+# 2: align_mlp_list
+# 3: sample_pts_num
+# 4: pool_size, [l,h,w, sample_num] for PointsPool only
+# 5: vfe_channel_list, for PointsPool only 
+# 5: bn
+# 6: scope
+#################################################
+__C.MODEL.NETWORK.FIRST_STAGE.POINTS_POOLER = ['RegionPool', ['mask', 'dist'], [128], 512, [6, 6, 6, 10], [128], True, 'roi_pool']
+
+__C.MODEL.NETWORK.FIRST_STAGE.POOLER_MASK_THRESHOLD = 0.5
 
 
 # model architecture for second stage
@@ -292,7 +309,7 @@ __C.MODEL.FIRST_STAGE.MULTI_HEAD_DISTRUBUTE = [['car'], ['construction_vehicle',
 __C.MODEL.FIRST_STAGE.CLS_ACTIVATION = 'Sigmoid' 
 # assign P/N anchors
 __C.MODEL.FIRST_STAGE.ASSIGN_METHOD = 'IoU' # IoU or Mask
-__C.MODEL.FIRST_STAGE.IOU_SAMPLE_TYPE = 'BEV' # 3D or BEV
+__C.MODEL.FIRST_STAGE.IOU_SAMPLE_TYPE = '3D' # 3D or BEV or Point
 __C.MODEL.FIRST_STAGE.CLASSIFICATION_POS_IOU = 0.7
 __C.MODEL.FIRST_STAGE.CLASSIFICATION_NEG_IOU = 0.55
 # FCOS center_ness label
@@ -309,8 +326,6 @@ __C.MODEL.FIRST_STAGE.PREDICT_ATTRIBUTE_AND_VELOCITY = False
 
 # second stage
 __C.MODEL.SECOND_STAGE = AttrDict()
-__C.MODEL.SECOND_STAGE.TYPE = 'PointRCNN' # PointRCNN or PointsPooling 
-__C.MODEL.SECOND_STAGE.OPEN = False
 __C.MODEL.SECOND_STAGE.NUM_OBJECT_POINT = 512 
 __C.MODEL.SECOND_STAGE.NMS_THRESH = 0.7
 __C.MODEL.SECOND_STAGE.MAX_OUTPUT_NUM = 100
@@ -334,11 +349,6 @@ __C.MODEL.SECOND_STAGE.CLASSIFICATION_LOSS.TYPE = 'Center-ness' # Center-ness or
 __C.MODEL.SECOND_STAGE.CLASSIFICATION_LOSS.CENTER_NESS_LABEL_RANGE = (0.0, 1.0)
 # using softmax-cross-entropy loss
 __C.MODEL.SECOND_STAGE.CLASSIFICATION_LOSS.SOFTMAX_SAMPLE_RANGE = 10.0
-# PointsPooling in STD
-__C.MODEL.SECOND_STAGE.POINTS_POOLING = AttrDict()
-# IoU branch
-__C.MODEL.SECOND_STAGE.IOU_BRANCH = AttrDict()
-__C.MODEL.SECOND_STAGE.IOU_BRANCH.OPEN = False
 # Corner loss
 __C.MODEL.SECOND_STAGE.CORNER_LOSS = False
 __C.MODEL.SECOND_STAGE.PREDICT_ATTRIBUTE_AND_VELOCITY = False

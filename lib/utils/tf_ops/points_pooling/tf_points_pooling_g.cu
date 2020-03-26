@@ -1,7 +1,3 @@
-// input: iou_matrix, [n, n], points_sampling, [n, npoint], merge function, 0:union, 1: intersection
-// min_keep_num
-// output: keep_inds [n, n], 0/1
-// nmsed_points_sample: [n, npoint], 0/1
 #include <stdio.h>
 #include <iostream>
 #include <vector>
@@ -25,118 +21,148 @@ const int block_num = 512;
 #define DIVUP(m,n) ((m) / (n) + ((m) % (n) > 0))
 const int threadsPerBlock = sizeof(unsigned long long) * 8;
 
-__global__ void points_pooling_gpu(const int proposal_num, const int points_num, const int channels, const int l, const int h, const int w, const int sample_num, const float* pc, const float* proposals, const float* pc_location, int *sampled_num_list, float* out_features, int *out_idx, float* anchors_pillars){
-    // pc: [b, 512, c], proposals: [b, 6], pc_locations: [b, 512, 3]
-    // sampled_num_list [b, l, h, w]: how many sampled points num
-    // out_features, [b, l, h, w, sample_num, c]
-    // anchors_pillars, [b, l, h, w, 3], centers for each pillars
-    CUDA_1D_KERNEL_LOOP(batch_inds, proposal_num){
+/*
+    PointsPooling module for sparse-to-dense
+    Args:
+        pc: [bs, proposal_num, point_num, channel_num]
+        box_3d: [bs, proposal_num, 6] x, y, z, l, h, w 
+        pc_loc: [bs, proposal_num, point_num, 3]
+    Return:
+        out_features: [bs, proposal_num, l, h, w, sample_num, c]
+        out_idx: [bs, proposal_num, l, h, w, sample_num]
+        sampled_num_lists: [bs, proposal_num, l, h, w]
+        pillars: [bs, proposal_num, l, h, w, 3]
+*/
+__global__ void points_pooling_gpu(const int bs, const int proposal_num, const int point_num, const int channel_num, 
+    const int l, const int h, const int w, const int sample_num, 
+    const float* pc, const float* box_3d, const float* pc_loc, 
+    float* out_features, int* out_idx, int *sampled_num_lists, float* pillars){
+
+    int loop_times = bs * proposal_num;
+    CUDA_1D_KERNEL_LOOP(batch_inds, loop_times){
         // recurrent the proposals
-        const float* cur_pc = pc + batch_inds * points_num * channels;
-        const float* cur_proposals = proposals + batch_inds * 6;
-        const float* cur_pc_locations = pc_location + batch_inds * points_num * 3;
+        const float* cur_pc = pc + batch_inds * point_num * channel_num;
+        const float* cur_box_3d = box_3d + batch_inds * 6;
+        const float* cur_pc_loc = pc_loc + batch_inds * point_num * 3;
  
-        float cur_xctr = cur_proposals[0];
-        float cur_yctr = cur_proposals[1];
-        float cur_zctr = cur_proposals[2];
-        float cur_length = cur_proposals[3];
-        float cur_height = cur_proposals[4];
-        float cur_width = cur_proposals[5];
+        float box_cx = cur_box_3d[0];
+        float box_by = cur_box_3d[1];
+        float box_cz = cur_box_3d[2];
+        float box_l  = cur_box_3d[3];
+        float box_h  = cur_box_3d[4];
+        float box_w  = cur_box_3d[5];
 
-        float length_gap = cur_length / l;
-        float height_gap = cur_height / h;
-        float width_gap = cur_width / w;
+        float interval_l = box_l / float(l);
+        float interval_h = box_h / float(h);
+        float interval_w = box_w / float(w);
        
-        float xmin = cur_xctr - cur_length / 2.;
-        float ymin = cur_yctr - cur_height;
-        float zmin = cur_zctr - cur_width / 2.;
+        float xmin = box_cx - box_l / 2.;
+        float ymin = box_by - box_h;
+        float zmin = box_cz - box_w / 2.;
 
-        int* cur_sampled_num_list = sampled_num_list + batch_inds * l * h * w; 
-        float* cur_out_features = out_features + batch_inds * l * h * w * sample_num * channels;
+        float* cur_out_features = out_features + batch_inds * l * h * w * sample_num * channel_num;
         int* cur_out_idx = out_idx + batch_inds * l * h * w * sample_num;
-        float* cur_anchors_pillars = anchors_pillars + batch_inds * l * h * w;
+        int* cur_sampled_num_list = sampled_num_lists + batch_inds * l * h * w; 
+        float* cur_pillars = pillars + batch_inds * l * h * w;
 
         float tmp_x, tmp_y, tmp_z;
         int tmp_idx;
-        for (int i=0; i < l; i ++){
+        for (int i=0; i < l; i++){
             for (int j=0; j<h; j++){
                 for (int k = 0; k < w; k++){
-                    tmp_x = xmin + (i + 0.5) * length_gap;
-                    tmp_y = ymin + (j + 0.5) * height_gap;
-                    tmp_z = zmin + (k + 0.5) * width_gap; 
+                    tmp_x = xmin + (i + 0.5) * interval_l;
+                    tmp_y = ymin + (j + 0.5) * interval_h;
+                    tmp_z = zmin + (k + 0.5) * interval_w; 
                     tmp_idx = (i * h * w + j * w + k) * 3; 
-                    cur_anchors_pillars[tmp_idx] = tmp_x;
-                    cur_anchors_pillars[tmp_idx + 1] = tmp_y;
-                    cur_anchors_pillars[tmp_idx + 2] = tmp_z;
+                    cur_pillars[tmp_idx] = tmp_x;
+                    cur_pillars[tmp_idx + 1] = tmp_y;
+                    cur_pillars[tmp_idx + 2] = tmp_z;
                 }
             }
         }
 
-        //int max_align_grid_inds = l * h * w; 
-
-        for (int i = 0; i < points_num; i ++){
+        float cur_pc_x, cur_pc_y, cur_pc_z;
+        for (int i = 0; i < point_num; i++){
             // calculate the result
-            float cur_pc_x = cur_pc_locations[i * 3 + 0];
-            float cur_pc_y = cur_pc_locations[i * 3 + 1];
-            float cur_pc_z = cur_pc_locations[i * 3 + 2]; 
+            cur_pc_x = cur_pc_loc[i * 3 + 0];
+            cur_pc_y = cur_pc_loc[i * 3 + 1];
+            cur_pc_z = cur_pc_loc[i * 3 + 2]; 
 
-            int align_x_inds = min(max(int(floor((cur_pc_x - xmin) / length_gap)), 0), l - 1);
-            int align_y_inds = min(max(int(floor((cur_pc_y - ymin) / height_gap)), 0), h - 1);
-            int align_z_inds = min(max(int(floor((cur_pc_z - zmin) / width_gap)), 0), w - 1);
+            int x_inds = min(max(int(floor((cur_pc_x - xmin) / interval_l)), 0), l - 1);
+            int y_inds = min(max(int(floor((cur_pc_y - ymin) / interval_h)), 0), h - 1);
+            int z_inds = min(max(int(floor((cur_pc_z - zmin) / interval_w)), 0), w - 1);
 
-            int align_grid_inds = align_x_inds * h * w + align_y_inds * w + align_z_inds;
-            //printf ("%d, %d, %d\n", l, h, w);
-            //printf ("%d, %d, %d, %d, %f\n", align_x_inds, align_y_inds, align_z_inds, align_grid_inds, length_gap);
-            // align_grid_inds = min(align_grid_inds, max_align_grid_inds - 1);
-            if (cur_sampled_num_list[align_grid_inds] >= sample_num)
+            int grid_inds = x_inds * h * w + y_inds * w + z_inds;
+            if (cur_sampled_num_list[grid_inds] >= sample_num)
                 continue;
-            int cur_pooled_pts_num = cur_sampled_num_list[align_grid_inds];
-            int out_align_grid_inds = align_grid_inds * sample_num + cur_pooled_pts_num;
+            int cur_pc_inds = cur_sampled_num_list[grid_inds];
+            int out_grid_inds = grid_inds * sample_num + cur_pc_inds;;
             
-            cur_out_idx[out_align_grid_inds] = i;
-            for (int j = 0; j < channels; j ++){
-                cur_out_features[out_align_grid_inds * channels + j] = cur_pc[i * channels + j];
+            cur_out_idx[out_grid_inds] = i;
+            for (int j = 0; j < channel_num; j ++){
+                cur_out_features[out_grid_inds * channel_num + j] = cur_pc[i * channel_num + j];
             }
-            //cudaMemcpy(&cur_out_features[out_align_grid_inds * channels], &cur_pc[i * channels], sizeof(float) * channels, cudaMemcpyDeviceToDevice);
-            cur_sampled_num_list[align_grid_inds] += 1;
-        }
-    }
-}
-
-__global__ void points_pooling_grad_gpu(const int proposal_num, const int points_num, const int channels, const int l, const int h, const int w, const int sample_num, const float* pc, const int* out_idx, const int *sampled_num_list, const float* features_grad, float *pc_grad){
-    // pc: [b, points_num, c], out_idx[b, l, h, w, sample_num], features_grad: [b, l, h, w, sample_num, c]
-    // sampled_num_list: [b, l, h, w]
-    // pc_grad, [b, points_num. c]
-    for (int batch_inds = blockIdx.x; batch_inds < proposal_num; batch_inds += gridDim.x){
-        const int *cur_out_idx = out_idx + batch_inds * l * h * w * sample_num;
-        const int *cur_sampled_num_list = sampled_num_list + batch_inds * l * h * w; 
-        const float *cur_features_grad = features_grad + batch_inds * l * h * w * sample_num * channels;
-        float *cur_pc_grad = pc_grad + batch_inds * points_num * channels;
-
-        int x_index = threadIdx.x;
-        int x_stride = blockDim.x;
-        for (int i = x_index; i < l * h * w; i += x_stride){
-            // look through each x_index
-            int cur_sampled_num = cur_sampled_num_list[i];
-            for (int j=0; j < cur_sampled_num; j++){
-                int cur_align_out_idx = cur_out_idx[i * sample_num + j];
-                for (int k = 0; k < channels; k++){
-                    atomicAdd(&cur_pc_grad[cur_align_out_idx * channels + k], cur_features_grad[i * sample_num * channels + j * channels + k]);
-                }
-            }
+            cur_sampled_num_list[grid_inds] += 1;
         }
     }
 }
 
 
-void pointsPoolingLauncher(const int proposal_num, const int points_num, const int channels, const int l, const int h, const int w, const int sample_num, const float* pc, const float* proposals, const float* pc_location, int *sampled_num_list, float* out_features, int *out_idx, float* anchors_pillars){
-    //std::cout << "beginning forwarding" << std::endl;
-    points_pooling_gpu<<<block_num, threadsPerBlock>>>(proposal_num, points_num, channels, l, h, w, sample_num, pc, proposals, pc_location, sampled_num_list, out_features, out_idx, anchors_pillars);
-    //std::cout << "Finishing forwarding" << std::endl;
+/*  Calculate gradients of PointsPool operation in sparse to dense
+    Args:
+        pc: [bs, proposal_num, point_num, channel_num]
+        out_idx: [bs, proposal_num, l, h, w, sample_num]    
+        sampled_num_lists: [bs, proposal_num, l, h, w]
+        features_grad: [bs, proposal_num, l, h, w, sample_num, channel_num]
+    Return:
+        pc_grad: [bs, proposal_num, point_num, channel_num]
+*/
+__global__ void points_pooling_grad_gpu(const int bs, const int proposal_num, const int point_num, const int channel_num,
+    const int l, const int h, const int w, const int sample_num,
+    const float* pc, const int* out_idx, const int *sampled_num_lists, const float* features_grad,
+    float *pc_grad){
+
+    int loop_times = bs * proposal_num * l * h * w * sample_num * channel_num;
+    CUDA_1D_KERNEL_LOOP(point_inds, loop_times){
+        int proposal_idx = point_inds / (l * h * w * sample_num * channel_num);
+        int sample_num_lists_idx = point_inds / (sample_num * channel_num);
+
+        int out_idx_idx = point_inds / channel_num;
+        int channel_idx = point_inds % channel_num;
+
+        int cur_sample_idx = out_idx_idx % sample_num;
+        if (cur_sample_idx >= sample_num_lists_idx[0])
+            continue;
+
+        int* cur_out_idx = out_idx + out_idx_idx;
+        float* cur_pc_grad = pc_grad + proposal_idx * point_num * channel_num + 
+                             cur_out_idx[0] * channel_num + channel_idx; 
+        atomicAdd(&cur_pc_grad[0], features_grad[point_inds]);
+    }
 }
 
-void pointsPoolingGradLauncher(const int proposal_num, const int points_num, const int channels, const int l, const int h, const int w, const int sample_num, const float* pc, const int* out_idx, const int *sampled_num_list, const float* features_grad, float *pc_grad){
-    //std::cout << "Beginning grad" << std::endl;
-    points_pooling_grad_gpu<<<block_num, threadsPerBlock>>>(proposal_num, points_num, channels, l, h, w, sample_num, pc, out_idx, sampled_num_list, features_grad, pc_grad);
-    //std::cout << "Finishing grad" << std::endl;
+
+void pointsPoolingLauncher(const int bs, const int proposal_num, const int point_num, const int channel_num, 
+    const int l, const int h, const int w, const int sample_num, 
+    const float* pc, const float* box_3d, const float* pc_loc, 
+    float* out_features, int* out_idx, int *sampled_num_lists, float* pillars);{
+
+    points_pooling_gpu<<<block_num, threadsPerBlock>>>(
+        bs, proposal_num, point_num, channel_num,
+        l_, h_, w_, sample_num_,
+        pc, box_3d, pc_loc,
+        out_features, out_idx, sampled_num_lists, pillars
+    );
+}
+
+void pointsPoolingGradLauncher(const int bs, const int proposal_num, const int point_num, const int channel_num, 
+    const int l, const int h, const int w, const int sample_num, 
+    const float* pc, const int* out_idx, const int *sampled_num_lists, const float* features_grad, 
+    float *pc_grad){
+
+    points_pooling_grad_gpu<<<block_num, threadsPerBlock>>>(
+        bs, proposal_num, point_num, channel_num, 
+        l, h, w, sample_num, 
+        pc, out_idx, sampled_num_lists, features_grad, 
+        pc_grad);
 }

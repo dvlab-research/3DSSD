@@ -11,46 +11,44 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(BASE_DIR)
 grouping_module=tf.load_op_library(os.path.join(BASE_DIR, 'tf_grouping_so.so'))
 
-def calculate_points_iou(batch_points, batch_anchors_corners, batch_label_corners):
-    """ Calculate the points_iou between anchors and labels
-    Args:
-        batch_points: [bs, points_num, 3] 
-        batch_anchors_corners: [bs, anchors_num, 8, 3]
-        batch_label_corners: [bs, gt_num, 8, 3]
+
+def query_boxes_3d_mask(xyz, boxes_3d):
+    """ Calculate whether the points inside the box_3d 
+    Input
+        xyz: [b, n, 3]
+        boxes_3d: [b, num_proposals, 7] 
     Return:
-        points_iou: [bs, anchors_num, gt_num]
+        mask: [b, num_proposals, n], whether inside the corners or not
     """
-    raise Exception('Not Implementation Error!!!')
-    return grouping_module.calculate_points_iou(batch_points, batch_anchors_corners, batch_label_corners)
-ops.NoGradient('CalculatePointsIou')
+    return grouping_module.query_boxes_3d_mask(xyz, boxes_3d)
+ops.NoGradient('QueryBoxes3dMask')
 
-def query_corners_point(batch_points, batch_anchors_corners):
-    """ Calculate whether the points inside the 
-        Args:
-            batch_points: [b, n, 3]
-            batch_anchors_corners: [b, num_proposals, 8, 3] 
-        Return:
-            result_out: [b, num_proposals, n], whether inside the corners or not
+def query_points_iou(xyz, anchors_3d, gt_boxes_3d, iou_matrix):
+    """ Calculate the PointsIoU between anchors_3d and gt_boxes_3d
+    Input
+        xyz: [b, n, 3]
+        anchors_3d: [b, anchors_num, 7]
+        gt_boxes_3d: [b, gt_num, 7]
+        iou_matrix: [b, anchors_num, gt_num]
+    Return:
+        iou_points: [b, anchors_num, gt_num]
     """
-    return grouping_module.query_corners_point(batch_points, batch_anchors_corners)
-ops.NoGradient('QueryCornersPoint')
+    return grouping_module.query_points_iou(xyz, boxes_3d)
+ops.NoGradient('QueryPointsIou')
 
-def query_cube_point(radius, nsample, subcube_num, xyz1, xyz2):
-    '''
-    Input: 
-        radius: float32, half length of cube
-        nsample: int32, number of points selected in each cube region
-        subcube_num: int32, number of subcube per cube
-        xyz1: (batch_size, ndataset, 3), float32, input points
-        xyz2: (batch_size, npoint, 3), float32, query points
-    Output:
-        idx: (batch_size, npoint, nsample)
-        pts_cnt: (batch_size, npoint, subcube_num), pts_cnt per sub_cube num
-        subcube_location: (batch_size, npoint, subcube_num, 3), center
-    '''
-    return grouping_module.query_cube_point(xyz1, xyz2, radius, nsample, subcube_num)
+def query_boxes_3d_points(nsample, xyz, proposals):
+    """
+    Input:
+        nsample: int32, number of points selected in each boxes
+        xyz: [bs, pts_num, 3]
+        proposals: [bs, proposal_num, 7]
+    Return:
+        idx: [bs, proposal_num, nsample]
+        pts_cnt: [bs, proposal_num]
+    """
+    return grouping_module.query_boxes_3d_points(xyz, proposals, nsample)
+ops.NoGradient('QueryBoxes3dPoints')
 
-ops.NoGradient('QueryCubePoint')
 
 # query points with dynamic shape
 def query_ball_point_dynamic_shape(nsample, xyz1, xyz2, radius):
@@ -81,20 +79,6 @@ def query_dynamic_radius_for_points(xyz1, radius):
     '''
     return grouping_module.query_dynamic_radius_for_points(xyz1, radius)
 ops.NoGradient('QueryDynamicRadiusForPoints')
-
-# query the distance among each angle
-def query_target_distance_for_points(split_bin_num, xyz1, gt_boxes_3d):
-    '''
-    Query the distance from xyz1 to its assigned gt_boxes_3d
-    Note that, xyz1 has to be normalized by the angle from gt_boxes_3d
-    Input:
-        xyz1: [bs, npoint, 3]
-        gt_boxes_3d: [bs, npoint, 7]
-    Return:
-        target_dist: [bs, npoint, split_bin_num]
-    '''
-    return grouping_module.query_target_distance_for_points(xyz1, gt_boxes_3d, split_bin_num)
-ops.NoGradient('QueryTargetDistanceForPoints')
 
 
 def query_ball_point(radius, nsample, xyz1, xyz2):

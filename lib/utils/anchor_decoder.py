@@ -2,7 +2,6 @@ import numpy as np
 import tensorflow as tf
 
 from core.config import cfg
-import utils.anchor_encoder as anchor_encoder
 
 def decode_class2angle(pred_cls, pred_res_norm, bin_size, bin_interval):
     """
@@ -44,7 +43,9 @@ def decode_log_anchor(det_ctr, det_offset, det_angle_cls, det_angle_res, batch_a
     
     det_angle_cls = tf.argmax(det_angle_cls, axis=-1)
     pred_angle = decode_class2angle(det_angle_cls, det_angle_res, bin_size=cfg.MODEL.ANGLE_CLS_NUM, bin_interval=2 * np.pi / cfg.MODEL.ANGLE_CLS_NUM)
-
+    anchor_angle = batch_anchors_3d[:, :, -1]
+    pred_angle = anchor_angle + pred_angle # bs, anchor_num
+ 
     pred_ctr = tf.stack([pred_x, pred_y, pred_z], axis=-1)
     pred_offset = tf.maximum(tf.stack([pred_l, pred_h, pred_w], axis=-1), 0.1)
     pred_angle = tf.expand_dims(pred_angle, axis=-1)
@@ -73,6 +74,8 @@ def decode_dist_anchor(det_ctr, det_offset, det_angle_cls, det_angle_res, batch_
     
     det_angle_cls = tf.argmax(det_angle_cls, axis=-1)
     pred_angle = decode_class2angle(det_angle_cls, det_angle_res, bin_size=cfg.MODEL.ANGLE_CLS_NUM, bin_interval=2 * np.pi / cfg.MODEL.ANGLE_CLS_NUM)
+    anchor_angle = batch_anchors_3d[:, :, -1]
+    pred_angle = anchor_angle + pred_angle # bs, anchor_num
     pred_angle = tf.expand_dims(pred_angle, axis=-1)
 
     pred_anchors_3d = tf.concat([pred_ctr, pred_offset, pred_angle], axis=-1)
