@@ -30,7 +30,7 @@ All the codes are tested in the following environment:
 
 ### Performance and Model Zoo
 
-The results reported in paper are trained on *4 NVIDIA Tesla V100 (32G) GPUs* with batch-size 4 for each. The training GPU memory requirement is close to 26G. For less GPU memory cost and faster training process, two extra tiny versions of 3DSSD are provided. Some pretrained models are provided here as well as their performance on KITTI validation set. 
+Some pretrained models including 3DSSD and PointRCNN are listed below, which are trained on 3712 samples and evaluated on 3769 samples. The performance on validation set is as follows:
 
 <table>
     <thead>
@@ -45,24 +45,17 @@ The results reported in paper are trained on *4 NVIDIA Tesla V100 (32G) GPUs* wi
     <tbody>
         <tr>
             <td>3DSSD</td>
-            <td>91.71</td>
-            <td>83.22</td>
-            <td>80.37</td>
-            <td><a href="https://drive.google.com/open?id=1pbvyRGOknlovmIK96MwEyvV0_z76Bfks"> GoogleDrive </a></td>
+            <td>92.07</td>
+            <td>83.62</td>
+            <td>80.67</td>
+            <td><a href="https://drive.google.com/open?id=1pbvyRGOknlovmIK96MwEyvV0_z76Bfks"> model </a></td>
         </tr>
         <tr>
-            <td>tiny 3DSSD v1</td>
+            <td>PointRCNN</td>
             <td>91.31</td>
             <td>82.96</td>
             <td>80.28</td>
-            <td><a href="https://drive.google.com/open?id=1L14QisrQMyIbowhSSOf_FjaOx9CVe0oF"> GoogleDrive </a></td>
-        </tr>
-        <tr>
-            <td>tiny 3DSSD v2</td>
-            <td>89.43</td>
-            <td>82.81</td>
-            <td>80.02</td>
-            <td><a href="https://drive.google.com/open?id=1L14QisrQMyIbowhSSOf_FjaOx9CVe0oF"> GoogleDrive </a></td>
+            <td><a href="https://drive.google.com/open?id=1L14QisrQMyIbowhSSOf_FjaOx9CVe0oF"> model </a></td>
         </tr>
     </tbody>
 </table>
@@ -182,7 +175,7 @@ python lib/core/trainer.py --cfg configs/kitti/3dssd/3dssd.yaml --restore_model_
 ```
 
 
-### Inference and Evaluation
+### Evaluation
 
 Evaluating a trained weight by
 ```
@@ -195,7 +188,11 @@ To evaluate all weights produced in the training process, run
 python lib/core/evaluator.py --cfg configs/kitti/3dssd/3dssd.yaml --restore_model_path /path/to/weight_dir
 ```
 
-KITTI Detection results and evaluation results will be saved in the **result** folder. 
+Evaluation results will be saved in the **result** folder. 
+
+### Inference
+
+
 
 
 ### TODO List
