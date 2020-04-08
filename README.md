@@ -19,9 +19,7 @@ Currently, there have been many kinds of voxel-based 3D single stage detectors, 
 
 ### Comparison between F-FPS and D-FPS
 
-### Results on KITTI test set
-
-<p align="center"> <img src="docs/results.png" width="80%"></p>
+<p align="center"> <img src="docs/demo.gif" width="90%"></p>
 
 ### Requirements
 All the codes are tested in the following environment:
@@ -32,7 +30,7 @@ All the codes are tested in the following environment:
 
 ### Performance and Model Zoo
 
-The results reported in paper are trained *4 NVIDIA Tesla V100 (32G) GPUs* with batch-size 4 for each. The training GPU memory requirement is close to 26G. For less GPU memory cost and faster training process, two extra tiny versions of 3DSSD are provided. Some pretrained models are provided here as well as their performance on KITTI validation set. 
+The results reported in paper are trained on *4 NVIDIA Tesla V100 (32G) GPUs* with batch-size 4 for each. The training GPU memory requirement is close to 26G. For less GPU memory cost and faster training process, two extra tiny versions of 3DSSD are provided. Some pretrained models are provided here as well as their performance on KITTI validation set. 
 
 <table>
     <thead>
@@ -74,7 +72,8 @@ The results reported in paper are trained *4 NVIDIA Tesla V100 (32G) GPUs* with 
 
 (1) Clone this repository.
 ```
-git clone https://github.com/tomztyang/3DSSD && cd 3DSSD
+git clone https://github.com/tomztyang/3DSSD
+cd 3DSSD
 ```
 
 (2) Setup Python environment.
@@ -84,7 +83,7 @@ source activate 3dssd
 pip install -r requirements.txt --user
 ```
 
-Download and install tensorflow-1.4.0 [here](https://drive.google.com/drive/u/0/folders/1PDYxf-n3W96gZHfLs-MsV6nAQELp0ylY) compiled with CUDA-9.0 and CuDNN-7.0.0.
+Download and install tensorflow-1.4.0 [here](https://drive.google.com/drive/u/0/folders/1PDYxf-n3W96gZHfLs-MsV6nAQELp0ylY) which is compiled with CUDA-9.0 and CuDNN-7.0.0.
 ```
 pip install tensorflow-1.4.0-cp36-cp36m-linux_x86_64.whl --user
 ```
@@ -94,7 +93,7 @@ pip install tensorflow-1.4.0-cp36-cp36m-linux_x86_64.whl --user
 bash compile_all.sh /path/to/tensorflow /path/to/cuda
 ```
 
-(4) Add *3DSSD/lib* to PYTHONPATH.
+(4) Add **3DSSD/lib** to PYTHONPATH.
 
 ```
 export PYTHONPATH=$PYTHONPATH:/path/to/3DSSD/lib
@@ -137,7 +136,7 @@ Currently we only support KITTI dataset, and NuScenes dataset will be supported 
 python lib/core/data_preprocessor.py --cfg configs/kitti/3dssd.yaml --split training --img_list val
 ```
 
-The preprocessed data will be saved in directory *data/KITTI*. You can also modify the dataset path and saving path in configure file:
+The preprocessed data will be saved in directory **data/KITTI**. You can also modify the dataset path and saving path in configure file:
 
 ```
 DATASET:
@@ -175,9 +174,9 @@ Then run
 python lib/core/trainer.py --cfg configs/kitti/3dssd/3dssd.yaml
 ```
 
-The training models, configuration and logs will be saved in the *log* folder, which can also be assigned in configure files.
+The trained models, configuration and logs will be saved in the **log** folder, which can also be assigned in configure files.
 
-To load some pretrained model, you can use *--restore_model_path*.
+To load some pretrained model, you can use **--restore_model_path**.
 ```
 python lib/core/trainer.py --cfg configs/kitti/3dssd/3dssd.yaml --restore_model_path /path/to/model
 ```
@@ -196,7 +195,7 @@ To evaluate all weights produced in the training process, run
 python lib/core/evaluator.py --cfg configs/kitti/3dssd/3dssd.yaml --restore_model_path /path/to/weight_dir
 ```
 
-KITTI Detection results and evaluation results will be saved in the *result* folder. 
+KITTI Detection results and evaluation results will be saved in the **result** folder. 
 
 
 ### TODO List
