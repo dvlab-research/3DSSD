@@ -122,7 +122,7 @@ Currently we only support KITTI dataset, and NuScenes dataset will be supported 
     |-- ...
 ```
 
-(2) Choose the target configure file in configs directory (i.e., configs/kitti/3dssd/3dssd.yaml) and preprocess original dataset by
+(2) Choose the target configure file in **configs** directory (i.e., configs/kitti/3dssd/3dssd.yaml) and preprocess original dataset by
 
 
 ```
