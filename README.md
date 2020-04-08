@@ -52,9 +52,9 @@ Some pretrained models including 3DSSD and PointRCNN are listed below, which are
         </tr>
         <tr>
             <td>PointRCNN</td>
-            <td>91.31</td>
-            <td>82.96</td>
-            <td>80.28</td>
+            <td>88.90</td>
+            <td>79.88</td>
+            <td>78.37</td>
             <td><a href="https://drive.google.com/open?id=1L14QisrQMyIbowhSSOf_FjaOx9CVe0oF"> model </a></td>
         </tr>
     </tbody>
