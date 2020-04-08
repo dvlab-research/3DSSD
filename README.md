@@ -21,7 +21,7 @@ Currently, there have been many kinds of voxel-based 3D single stage detectors, 
 
 ### Results on KITTI test set
 
-<p align="center"> <img src="docs/results.jpg" width="80%"></p>
+<p align="center"> <img src="docs/results.png" width="80%"></p>
 
 ### Requirements
 All the codes are tested in the following environment:
