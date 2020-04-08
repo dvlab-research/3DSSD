@@ -2,7 +2,7 @@
 
 ## Point-based 3D Single Stage Object Detector (CVPR 2020 Oral)
 
-This is a the official implementation of [3DSSD: Point-based 3D Single Stage Object Detector](https://arxiv.org/abs/2002.10187)&nbsp; (CVPR 2020 Oral), a single-stage 3D point-based object detector.
+This is the official implementation of [3DSSD: Point-based 3D Single Stage Object Detector](https://arxiv.org/abs/2002.10187)&nbsp; (CVPR 2020 Oral), a single-stage 3D point-based object detector.
 
 
 ### Introduction
