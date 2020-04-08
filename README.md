@@ -76,7 +76,7 @@ source activate 3dssd
 pip install -r requirements.txt --user
 ```
 
-Download and install tensorflow-1.4.0 [here](https://drive.google.com/drive/u/0/folders/1PDYxf-n3W96gZHfLs-MsV6nAQELp0ylY) which is compiled with CUDA-9.0 and CuDNN-7.0.0.
+Download and install tensorflow-1.4.0 [here](https://drive.google.com/file/d/1y5YvM9v1ji5qTh1OfS9VSkJd7bdzn4D1/view?usp=sharing) which is compiled with CUDA-9.0 and CuDNN-7.0.0.
 ```
 pip install tensorflow-1.4.0-cp36-cp36m-linux_x86_64.whl --user
 ```
