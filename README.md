@@ -206,7 +206,7 @@ These results will be saved at **/path/to/weight/kitti_result**.
 - [x] Multiple GPUs for training
 - [x] Reduce training GPU memory usage
 - [x] Support PointRCNN (CVPR2019) 
-- [ ] Visualiaztion results
+- [ ] Visualization results
 - [ ] Support STD (ICCV2019)
 - [ ] Add NuScenes dataset 
 - [ ] Still in progress
