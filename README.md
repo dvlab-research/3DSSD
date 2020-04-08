@@ -55,7 +55,7 @@ Some pretrained models including 3DSSD and PointRCNN are listed below with their
             <td>88.91</td>
             <td>79.88</td>
             <td>78.37</td>
-            <td><a href="https://drive.google.com/open?id=1L14QisrQMyIbowhSSOf_FjaOx9CVe0oF"> GoogleDrive </a></td>
+            <td><a href="https://drive.google.com/file/d/1WBjlgsCzMl4-Yw_iuyQ9tYDX5FWOFi-m/view?usp=sharing"> model </a></td>
         </tr>
     </tbody>
 </table>
