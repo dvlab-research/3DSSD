@@ -1,8 +1,0 @@
-points2voxel.cpp
-setup.py
-points2voxel.egg-info/PKG-INFO
-points2voxel.egg-info/SOURCES.txt
-points2voxel.egg-info/dependency_links.txt
-points2voxel.egg-info/not-zip-safe
-points2voxel.egg-info/requires.txt
-points2voxel.egg-info/top_level.txt
