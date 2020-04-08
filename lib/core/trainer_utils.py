@@ -52,3 +52,30 @@ def get_variables_in_checkpoint_file(file_name):
         return var_to_shape_map
     except Exception as e:  # pylint: disable=broad-except
         print(str(e))
+
+def get_trainable_parameter(prefix_list):
+    """
+    Given the prefix list of trainable params and return them
+    """
+    if len(prefix_list) == 0:
+        return tf.trainable_variables()
+    else:
+        param_list = []
+        for prefix in prefix_list:
+            param = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, prefix)
+            param_list.extend(param)
+        return param_list
+  
+def get_trainable_loss(prefix_list, scope):
+    """
+    Given the prefix list of trainable loss and return them
+    """
+    if len(prefix_list) == 0:
+        return tf.get_collection('losses', scope) 
+    else:
+        loss_list = []
+        for prefix in prefix_list:
+            loss = tf.get_collection('losses',
+                '%s%s'%(scope, prefix))
+            loss_list.extend(loss)
+        return loss_list

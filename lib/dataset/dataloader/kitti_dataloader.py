@@ -16,7 +16,7 @@ from utils.anchor_encoder import encode_angle2class_np
 from utils.points_filter import * 
 from utils.voxelnet_aug import check_inside_points
 from utils.anchors_util import project_to_image_space_corners
-from utils.tf_ops.evaluation.tf_evaluate import evaluate
+from utils.tf_ops.evaluation.tf_evaluate import evaluate, calc_iou
 from dataset.data_provider.data_provider import DataFromList, MultiProcessMapData, BatchDataNuscenes
 
 class KittiDataset:
@@ -46,6 +46,15 @@ class KittiDataset:
         self.sv_npy_path = os.path.join(cfg.ROOT_DIR, cfg.DATASET.KITTI.SAVE_NUMPY_PATH, base_dir + self.img_list, '{}'.format(self.cls_list))
 
         self.train_list = os.path.join(self.sv_npy_path, 'train_list.txt')
+
+        self.test_mode = cfg.TEST.TEST_MODE
+        if self.test_mode == 'mAP':
+            self.evaluation = self.evaluate_map 
+            self.logger_and_select_best = self.logger_and_select_best_map 
+        elif self.test_mode == 'Recall':
+            self.evaluation = self.evaluate_recall
+            self.logger_and_select_best = self.logger_and_select_best_recall
+        else: raise Exception('No other evaluation mode.')
 
         if mode == 'loading':
             # data loader
@@ -320,7 +329,7 @@ class KittiDataset:
 
         return pred_list
 
-    def evaluation(self, sess, feeddict_producer, pred_list, val_size, cls_thresh, log_dir):
+    def evaluate_map(self, sess, feeddict_producer, pred_list, val_size, cls_thresh, log_dir, placeholders=None):
         obj_detection_list = []
         obj_detection_num = []
         obj_detection_name = []
@@ -368,7 +377,33 @@ class KittiDataset:
         result_list = [precision_img_op, aos_img_op, precision_ground_op, aos_ground_op, precision_3d_op, aos_3d_op] 
         return result_list 
 
-    def logger_and_select_best(self, result_list, log_string):
+
+    def evaluate_recall(self, sess, feeddict_producer, pred_list, val_size, iou_threshold, log_dir, placeholders=None):
+        pred_bbox_3d = tf.expand_dims(pred_list[0], axis=0)
+        gt_boxes_3d = placeholders[maps_dict.PL_LABEL_BOXES_3D]
+        iou_bev, iou_3d = calc_iou(pred_bbox_3d, gt_boxes_3d) # [bs, pred_num, gt_num]
+
+        detected_gt, total_gt = 0, 0
+
+        for i in tqdm.tqdm(range(val_size)):
+            feed_dict = feeddict_producer.create_feed_dict()
+
+            iou_3d_op = sess.run(iou_3d, feed_dict=feed_dict) 
+
+            iou_3d_op = iou_3d_op[0, :, :]
+            max_pred_iou = np.max(iou_3d_op, axis=1) # [pred_num]
+            detected_idx = np.where(max_pred_iou >= iou_threshold)[0]
+            pred_max_iou = np.argmax(iou_3d_op, axis=1)
+            pred_max_iou = pred_max_iou[detected_idx]
+
+            pred_max_iou_unique = np.unique(pred_max_iou)
+            detected_gt += len(pred_max_iou_unique)
+            total_gt += iou_3d_op.shape[1]
+
+        result_list = [detected_gt, total_gt] 
+        return result_list 
+
+    def logger_and_select_best_map(self, result_list, log_string):
         """
             log_string: a function to print final result
         """
@@ -376,24 +411,24 @@ class KittiDataset:
 
         log_string('precision_image:')
         # [NUM_CLASS, E/M/H], NUM_CLASS: Car, Pedestrian, Cyclist
-        precision_img_res = precision_img_op[:, :, 1:]
-        precision_img_res = np.sum(precision_img_res, axis=-1) / 40.
-        # precision_img_res = precision_img_op[:, :, ::4]
-        # precision_img_res = np.sum(precision_img_res, axis=-1) / 11.
+        # precision_img_res = precision_img_op[:, :, 1:]
+        # precision_img_res = np.sum(precision_img_res, axis=-1) / 40.
+        precision_img_res = precision_img_op[:, :, ::4]
+        precision_img_res = np.sum(precision_img_res, axis=-1) / 11.
         log_string(str(precision_img_res))
 
         log_string('precision_ground:')
-        precision_ground_res = precision_ground_op[:, :, 1:]
-        precision_ground_res = np.sum(precision_ground_res, axis=-1) / 40.
-        # precision_ground_res = precision_ground_op[:, :, ::4]
-        # precision_ground_res = np.sum(precision_ground_res, axis=-1) / 11.
+        # precision_ground_res = precision_ground_op[:, :, 1:]
+        # precision_ground_res = np.sum(precision_ground_res, axis=-1) / 40.
+        precision_ground_res = precision_ground_op[:, :, ::4]
+        precision_ground_res = np.sum(precision_ground_res, axis=-1) / 11.
         log_string(str(precision_ground_res))
 
         log_string('precision_3d:')
-        precision_3d_res = precision_3d_op[:, :, 1:]
-        precision_3d_res = np.sum(precision_3d_res, axis=-1) / 40.
-        # precision_3d_res = precision_3d_op[:, :, ::4]
-        # precision_3d_res = np.sum(precision_3d_res, axis=-1) / 11.
+        # precision_3d_res = precision_3d_op[:, :, 1:]
+        # precision_3d_res = np.sum(precision_3d_res, axis=-1) / 40.
+        precision_3d_res = precision_3d_op[:, :, ::4]
+        precision_3d_res = np.sum(precision_3d_res, axis=-1) / 11.
         log_string(str(precision_3d_res))
 
         if 'Car' in self.cls_list:
@@ -402,3 +437,58 @@ class KittiDataset:
             cur_result = (precision_3d_res[1, 1] + precision_3d_res[2, 1]) / 2.
 
         return cur_result
+
+
+    def logger_and_select_best_recall(self, result_list, log_string):
+        """
+            log_string: a function to print final result
+        """
+        detected_gt, total_gt = result_list
+
+        log_string('**** Finally CACULATIE AVERAGE RECALL Result ****')
+        log_string('Total Ground Truth box number is: %d'%total_gt)
+        log_string('Detected Ground Truth box number is: %d'%detected_gt)
+        log_string('Current Average Recall Rate is: %f'%(detected_gt/total_gt))
+        # [NUM_CLASS, E/M/H], NUM_CLASS: Car, Pedestrian, Cyclist
+
+        # using the 3d_moderate as the evaluation num
+        cur_result = detected_gt/total_gt
+
+        return cur_result
+
+  
+    # Save predictions
+    def save_predictions(self, sess, feeddict_producer, pred_list, val_size, cls_thresh, log_dir, placeholders=None):
+        obj_detection_list = []
+        obj_detection_num = []
+        obj_detection_name = []
+        sv_dir = os.path.join(log_dir, 'kitti_result')
+        if not os.path.exists(sv_dir): os.makedirs(sv_dir)
+        for i in tqdm.tqdm(range(val_size)):
+            feed_dict = feeddict_producer.create_feed_dict()
+
+            pred_bbox_3d_op, pred_cls_score_op, pred_cls_category_op = sess.run(pred_list, feed_dict=feed_dict) 
+
+            calib_P, sample_name = feeddict_producer.info
+            sample_name = int(sample_name[0])
+            calib_P = calib_P[0]
+
+            select_idx = np.where(pred_cls_score_op >= cls_thresh)[0]
+            pred_cls_score_op = pred_cls_score_op[select_idx]
+            pred_cls_category_op = pred_cls_category_op[select_idx]
+            pred_bbox_3d_op = pred_bbox_3d_op[select_idx]
+            pred_bbox_corners_op = box_3d_utils.get_box3d_corners_helper_np(pred_bbox_3d_op[:, :3], pred_bbox_3d_op[:, -1], pred_bbox_3d_op[:, 3:-1]) 
+            pred_bbox_2d = project_to_image_space_corners(pred_bbox_corners_op, calib_P)
+
+            obj_num = len(pred_bbox_3d_op)
+
+            with open(sv_dir + '/%06d.txt'%sample_name, 'w') as fid:
+                for idx in range(len(pred_cls_score_op)):
+                    cls_idx = int(pred_cls_category_op[idx])
+                    fid.write('%s %0.2f %d %d ' % (self.cls_list[cls_idx], 0., 0, -10))
+                    fid.write('%0.2f %0.2f %0.2f %0.2f ' % (float(pred_bbox_2d[idx, 0]), float(pred_bbox_2d[idx, 1]), float(pred_bbox_2d[idx, 2]), float(pred_bbox_2d[idx, 3])))
+                    fid.write('%0.2f %0.2f %0.2f ' % (float(pred_bbox_3d_op[idx, 4]), float(pred_bbox_3d_op[idx, 5]), float(pred_bbox_3d_op[idx, 3])))
+                    fid.write('%0.2f %0.2f %0.2f %0.2f ' % (float(pred_bbox_3d_op[idx, 0]), float(pred_bbox_3d_op[idx, 1]), float(pred_bbox_3d_op[idx, 2]), float(pred_bbox_3d_op[idx, -1])))
+                    fid.write('%0.9f\n' % float(pred_cls_score_op[idx]))
+
+        return 

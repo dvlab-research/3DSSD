@@ -1,8 +1,3 @@
-''' Furthest point sampling
-Original author: Haoqiang Fan
-Modified by Charles R. Qi
-All Rights Reserved. 2017. 
-'''
 import tensorflow as tf
 from tensorflow.python.framework import ops
 import sys
@@ -77,3 +72,15 @@ def farthest_point_sample_with_preidx(npoint, inp, preidx):
     """
     return sampling_module.farthest_point_sample_with_preidx(inp, preidx, npoint)
 ops.NoGradient('FarthestPointSampleWithPreidx')
+
+def gather_by_mask(proposal_num, inp, mask):
+    """
+    proposal_num: training proposal number for stage2
+    inp: [bs, pts_num, -1]
+    mask: [bs, pts_num]
+
+    out: [bs, proposal_num, -1]
+    """
+    return sampling_module.gather_by_mask(inp, mask, proposal_num)
+ops.NoGradient('GatherByMask')
+

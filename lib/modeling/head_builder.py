@@ -39,12 +39,23 @@ class HeadBuilder:
         if self.layer_type == 'IoU':
             self.pred_cls_channel = self.anchor_num
 
+        self.reg_method = self.head_cfg.REGRESSION_METHOD.TYPE 
+        anchor_type = self.reg_method.split('-')[-1] # Anchor & free
+
         pred_reg_base_num = {
-            'Dist-Anchor': self.anchor_num,
-            'Log-Anchor': self.anchor_num,
-            'Dist-Anchor-free': 1,
+            'Anchor': self.anchor_num,
+            'free': 1,
         } 
-        self.pred_reg_base_num = pred_reg_base_num[self.head_cfg.REGRESSION_METHOD]
+        self.pred_reg_base_num = pred_reg_base_num[anchor_type]
+
+        pred_reg_channel_num = {
+            'Dist-Anchor': 6,
+            'Log-Anchor': 6,
+            'Dist-Anchor-free': 6,
+            # bin_x/res_x/bin_z/res_z/res_y/res_size
+            'Bin-Anchor': self.head_cfg.REGRESSION_METHOD.BIN_CLASS_NUM * 4 + 4,
+        } 
+        self.pred_reg_channel_num = pred_reg_channel_num[self.reg_method]
 
         self.conv_op = select_conv_op(self.op_type)
         # build the head predictor
@@ -63,6 +74,7 @@ class HeadBuilder:
             self.head_predictor = partial(
                 self.head_predictor, 
                 pred_reg_base_num=self.pred_reg_base_num,
+                pred_reg_channel_num=self.pred_reg_channel_num,
                 pred_attr_velo=self.head_cfg.PREDICT_ATTRIBUTE_AND_VELOCITY,
             )
 
@@ -109,7 +121,7 @@ class HeadBuilder:
         feature_shape = feature.get_shape().as_list()
         format_feature = feature
         if (self.op_type == 'fc') and (len(feature_shape) != 2):
-            format_feature = tf.reshape(feature, [self.batch_size, -1]) 
+            format_feature = tf.reshape(feature, [feature_shape[0], -1]) 
         if (self.op_type == 'conv1d') and (len(feature_shape) != 3): 
             format_feature = tf.reshape(feature, [self.batch_size, -1, feature_shape[-1]]) 
         if (self.op_type == 'conv2d') and (len(feature_shape) != 4):

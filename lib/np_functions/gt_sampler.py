@@ -62,13 +62,14 @@ def vote_targets_np(vote_base, gt_boxes_3d):
 
 
 
-def iou_assign_targets_anchors_np(batch_iou_matrix, batch_points, batch_anchors_3d, batch_gt_boxes_3d, batch_gt_labels, minibatch_size, positive_rate, pos_iou, neg_iou, effective_sample_range):
+def iou_assign_targets_anchors_np(batch_iou_matrix, batch_points, batch_anchors_3d, batch_gt_boxes_3d, batch_gt_labels, minibatch_size, positive_rate, pos_iou, neg_iou, effective_sample_range, valid_mask):
     """ IoU assign targets function
     batch_iou_matrix: [bs, points_num, cls_num, gt_num]
     batch_points: [bs, points_num, 3]
     batch_anchors_3d: [bs, points_num, cls_num, 7]
     batch_gt_boxes_3d: [bs, gt_num, 7]
     batch_gt_labels: [bs, gt_num]
+    valid_mask: [bs, points_num, cls_num]
 
     return:
         assigned_idx: [bs, points_num, cls_num], int32, the index of groundtruth
@@ -88,6 +89,7 @@ def iou_assign_targets_anchors_np(batch_iou_matrix, batch_points, batch_anchors_
         # pts_num, cls_num, 7
         cur_points = batch_points[i]
         cur_anchors_3d = batch_anchors_3d[i] # [pts_num, cls_num, 7]
+        cur_valid_mask = valid_mask[i]
 
         # gt_num
         cur_gt_labels = batch_gt_labels[i] # [gt_num]
@@ -129,8 +131,10 @@ def iou_assign_targets_anchors_np(batch_iou_matrix, batch_points, batch_anchors_
 
         pmask = np.greater_equal(iou_matrix, pos_iou) # [pts_num, gt_num]
         dist_mask = np.less_equal(dist, effective_sample_range)
-        pmask = np.logical_and(pmask, dist_mask)
-        nmask = np.logical_and(np.less(iou_matrix, neg_iou), np.greater_equal(iou_matrix, 0))
+        pmask = np.logical_and(pmask, dist_mask).astype(np.float32)
+        nmask = np.logical_and(np.less(iou_matrix, neg_iou), np.greater_equal(iou_matrix, 0.05)).astype(np.float32)
+        pmask = pmask * cur_valid_mask
+        nmask = nmask * cur_valid_mask
 
         # finally let's randomly choice some points
         if minibatch_size != -1: 
@@ -161,12 +165,13 @@ def iou_assign_targets_anchors_np(batch_iou_matrix, batch_points, batch_anchors_
     return batch_assigned_idx, batch_assigned_pmask, batch_assigned_nmask
 
 
-def mask_assign_targets_anchors_np(batch_points, batch_anchors_3d, batch_gt_boxes_3d, batch_gt_labels, minibatch_size, positive_rate, pos_iou, neg_iou, effective_sample_range):
+def mask_assign_targets_anchors_np(batch_points, batch_anchors_3d, batch_gt_boxes_3d, batch_gt_labels, minibatch_size, positive_rate, pos_iou, neg_iou, effective_sample_range, valid_mask):
     """ Mask assign targets function
     batch_points: [bs, points_num, 3]
     batch_anchors_3d: [bs, points_num, cls_num, 7]
     batch_gt_boxes_3d: [bs, gt_num, 7]
     batch_gt_labels: [bs, gt_num]
+    valid_mask: [bs, points_num, cls_num]
 
     return:
         assigned_idx: [bs, points_num, cls_num], int32, the index of groundtruth
@@ -184,6 +189,7 @@ def mask_assign_targets_anchors_np(batch_points, batch_anchors_3d, batch_gt_boxe
     for i in range(bs):
         cur_points = batch_points[i]
         cur_anchors_3d = batch_anchors_3d[i] # [pts_num, cls_num, 3/7]
+        cur_valid_mask = valid_mask[i] # [pts_num, cls_num]
 
         # gt_num
         cur_gt_labels = batch_gt_labels[i] # [gt_num]
@@ -218,10 +224,12 @@ def mask_assign_targets_anchors_np(batch_points, batch_anchors_3d, batch_gt_boxe
         dist_mask = np.less_equal(dist, effective_sample_range) # pts_num, cls_num
         pmask = np.logical_and(pmask[:, np.newaxis], dist_mask).astype(np.float32)
         pmask = pmask * label_mask
+        pmask = pmask * cur_valid_mask
 
         nmask = np.max(points_mask, axis=1) == 0
         nmask = np.tile(np.reshape(nmask, [pts_num, 1]), [1, cls_num])
         nmask = nmask * label_mask
+        nmask = nmask * cur_valid_mask
 
         # then randomly sample
         if minibatch_size != -1:

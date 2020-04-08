@@ -42,6 +42,8 @@ class SingleStageDetector:
         # loss builder
         self.loss_builder = LossBuilder(0)
 
+        self.corner_loss = cfg.MODEL.FIRST_STAGE.CORNER_LOSS
+
         # head builder
         self.iou_loss = False
         self.heads = []
@@ -187,7 +189,7 @@ class SingleStageDetector:
         self.labels[maps_dict.GT_PMASK].append(assigned_pmask)
         self.labels[maps_dict.GT_NMASK].append(assigned_nmask)
 
-        self.loss_builder.forward(index, self.labels, self.output, self.placeholders, self.vote_loss, self.attr_velo_loss, self.iou_loss)
+        self.loss_builder.forward(index, self.labels, self.output, self.placeholders, self.corner_loss, self.vote_loss, self.attr_velo_loss, self.iou_loss)
 
 
     def test_forward(self, index, anchors):

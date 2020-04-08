@@ -30,19 +30,28 @@ class LossBuilder:
 
         self.cls_list = cfg.DATASET.KITTI.CLS_LIST
 
+        reg_cfg = self.loss_cfg.REGRESSION_METHOD
+        self.reg_type = reg_cfg.TYPE
+        self.reg_bin_cls_num = reg_cfg.BIN_CLASS_NUM
+        if self.reg_type == 'Bin-Anchor':
+            self.offset_loss = self.offset_loss_bin 
+        else:
+            self.offset_loss = self.offset_loss_res
 
-    def forward(self, index, label_dict, pred_dict, placeholders, vote_loss=False, attr_velo_loss=False, iou_loss=False):
-        self.cls_loss(index, label_dict, pred_dict)
-        self.corner_loss(index, label_dict, pred_dict)
-        self.offset_loss(index, label_dict, pred_dict)
-        self.angle_loss(index, label_dict, pred_dict)
+    def forward(self, index, label_dict, pred_dict, placeholders, corner_loss=False, vote_loss=False, attr_velo_loss=False, iou_loss=False):
+        with tf.name_scope('loss_stage%d'%self.stage) as scope:
+            self.cls_loss(index, label_dict, pred_dict)
+            self.offset_loss(index, label_dict, pred_dict)
+            self.angle_loss(index, label_dict, pred_dict)
 
-        if vote_loss:
-            self.vote_loss(index, pred_dict, placeholders)
-        if attr_velo_loss:
-            self.velo_attr_loss(index, label_dict, pred_dict)
-        if iou_loss:
-            self.iou_loss(index, label_dict, pred_dict)
+            if corner_loss:
+                self.corner_loss(index, label_dict, pred_dict)
+            if vote_loss:
+                self.vote_loss(index, pred_dict, placeholders)
+            if attr_velo_loss:
+                self.velo_attr_loss(index, label_dict, pred_dict)
+            if iou_loss:
+                self.iou_loss(index, label_dict, pred_dict)
         
 
 
@@ -74,6 +83,7 @@ class LossBuilder:
                 
         elif self.cls_loss_type == 'Center-ness': # Center-ness label
             base_xyz = pred_dict[maps_dict.KEY_OUTPUT_XYZ][index]
+            base_xyz = tf.stop_gradient(base_xyz)
             assigned_boxes_3d = label_dict[maps_dict.GT_BOXES_ANCHORS_3D][index]
             ctr_ness = self._generate_centerness_label(base_xyz, assigned_boxes_3d, pmask)
             gt_cls = gt_cls * tf.expand_dims(ctr_ness, axis=-1)
@@ -129,7 +139,8 @@ class LossBuilder:
 
     def iou_loss(self, index, label_dict, pred_dict):
         pmask = label_dict[maps_dict.GT_PMASK][index]
-        nmask = label_dict[maps_dict.GT_NMASK][index]
+        pmask = tf.reduce_max(pmask, axis=-1)
+
         gt_cls = label_dict[maps_dict.GT_CLS][index] # bs, pts_num
         gt_cls = tf.cast(tf.one_hot(gt_cls - 1, depth=len(self.cls_list), on_value=1, off_value=0, axis=-1), tf.float32) # [bs, pts_num, cls_num]
 
@@ -161,7 +172,6 @@ class LossBuilder:
         vote_mask, vote_target = tf.py_func(vote_targets_np, [vote_base, gt_boxes_3d], [tf.float32, tf.float32]) 
         vote_mask = tf.reshape(vote_mask, [bs, pts_num])
         vote_target = tf.reshape(vote_target, [bs, pts_num, 3])
-
 
         vote_loss = tf.reduce_sum(model_util.huber_loss(vote_target - vote_offset, delta=1.), axis=-1) * vote_mask
         vote_loss = tf.reduce_sum(vote_loss) / tf.maximum(1., tf.reduce_sum(vote_mask))
@@ -216,7 +226,7 @@ class LossBuilder:
         tf.add_to_collection(tf.GraphKeys.LOSSES, corner_loss)
 
 
-    def offset_loss(self, index, label_dict, pred_dict):
+    def offset_loss_res(self, index, label_dict, pred_dict):
         pmask = label_dict[maps_dict.GT_PMASK][index]
         nmask = label_dict[maps_dict.GT_NMASK][index]
         gt_offset = label_dict[maps_dict.GT_OFFSET][index] 
@@ -232,6 +242,34 @@ class LossBuilder:
         tf.add_to_collection(tf.GraphKeys.LOSSES, offset_loss)
 
 
+    def offset_loss_bin(self, index, label_dict, pred_dict):
+        pmask = label_dict[maps_dict.GT_PMASK][index]
+        nmask = label_dict[maps_dict.GT_NMASK][index]
+
+        # bs, points_num, cls_num, 8
+        gt_offset = label_dict[maps_dict.GT_OFFSET][index] # xbin/xres/zbin/zres/yres/size_res 
+        xbin, xres, zbin, zres = tf.unstack(gt_offset[:, :, :, :4], axis=-1)
+        gt_other_offset = gt_offset[:, :, :, 4:]
+ 
+        pred_offset = pred_dict[maps_dict.PRED_OFFSET][index]
+        pred_xbin = tf.slice(pred_offset, [0, 0, 0, self.reg_bin_cls_num * 0], [-1, -1, -1, self.reg_bin_cls_num])
+        pred_xres = tf.slice(pred_offset, [0, 0, 0, self.reg_bin_cls_num * 1], [-1, -1, -1, self.reg_bin_cls_num])
+        pred_zbin = tf.slice(pred_offset, [0, 0, 0, self.reg_bin_cls_num * 2], [-1, -1, -1, self.reg_bin_cls_num])
+        pred_zres = tf.slice(pred_offset, [0, 0, 0, self.reg_bin_cls_num * 3], [-1, -1, -1, self.reg_bin_cls_num])
+        pred_other_offset = tf.slice(pred_offset, [0, 0, 0, self.reg_bin_cls_num * 4], [-1, -1, -1, -1])
+
+        norm_param = tf.maximum(1., tf.reduce_sum(pmask))
+
+        self.bin_res_loss(pmask, norm_param, xbin, xres, pred_xbin, pred_xres, self.reg_bin_cls_num, 'x_loss%d'%index)
+        self.bin_res_loss(pmask, norm_param, zbin, zres, pred_zbin, pred_zres, self.reg_bin_cls_num, 'z_loss%d'%index)
+
+        other_offset_loss = model_util.huber_loss((pred_other_offset - gt_other_offset), delta=1.)
+        other_offset_loss = tf.reduce_sum(other_offset_loss, axis=-1) * pmask 
+        other_offset_loss = tf.identity(tf.reduce_sum(other_offset_loss) / norm_param, 'other_offset_loss%d'%index)
+        tf.summary.scalar('other_offset_loss%d'%index, other_offset_loss)
+        tf.add_to_collection(tf.GraphKeys.LOSSES, other_offset_loss)
+
+
     def angle_loss(self, index, label_dict, pred_dict):
         gt_angle_cls = label_dict[maps_dict.GT_ANGLE_CLS][index] # [bs, points_num, cls_num]
         gt_angle_res = label_dict[maps_dict.GT_ANGLE_RES][index]
@@ -243,17 +281,24 @@ class LossBuilder:
         pred_angle_res = pred_dict[maps_dict.PRED_ANGLE_RES][index]
 
         norm_param = tf.maximum(1., tf.reduce_sum(pmask))
-       
-        angle_cls_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=pred_angle_cls, labels=gt_angle_cls) * pmask # [bs, points_num, cls_num]
-        angle_cls_loss = tf.identity(tf.reduce_sum(angle_cls_loss) / norm_param, 'angle_cls_loss%d'%index)
-        tf.summary.scalar('angle_cls_loss%d'%index, angle_cls_loss)
-        tf.add_to_collection(tf.GraphKeys.LOSSES, angle_cls_loss)
 
-        angle_cls_onehot = tf.cast(tf.one_hot(gt_angle_cls, depth=cfg.MODEL.ANGLE_CLS_NUM, on_value=1, off_value=0, axis=-1), tf.float32)
-        gt_angle_res_norm = gt_angle_res / (2 * np.pi / cfg.MODEL.ANGLE_CLS_NUM)
-        pred_angle_res_norm = tf.reduce_sum(pred_angle_res * angle_cls_onehot, axis=-1)
-        angle_res_loss = model_util.huber_loss((pred_angle_res_norm - gt_angle_res_norm) * pmask, delta=1.)
-        angle_res_loss = tf.identity(tf.reduce_sum(angle_res_loss) / norm_param, 'angle_res_loss%d'%index)
-        tf.summary.scalar('angle_res_loss%d'%index, angle_res_loss)
-        tf.add_to_collection(tf.GraphKeys.LOSSES, angle_res_loss)
+        self.bin_res_loss(pmask, norm_param, gt_angle_cls, gt_angle_res, pred_angle_cls, pred_angle_res, \
+                          cfg.MODEL.ANGLE_CLS_NUM, 'angle_loss%d'%index)
+       
+
+    def bin_res_loss(self, pmask, norm_param, gt_bin, gt_res, pred_bin, pred_res, bin_class_num, scope):
+        gt_bin = tf.cast(gt_bin, tf.int32)
+
+        bin_loss = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=pred_bin, labels=gt_bin) * pmask
+        bin_loss = tf.identity(tf.reduce_sum(bin_loss) / norm_param, 'bin_%s'%scope)
+        tf.summary.scalar('bin_%s'%scope, bin_loss)
+        tf.add_to_collection(tf.GraphKeys.LOSSES, bin_loss)
+
+        gt_bin_onehot = tf.cast(tf.one_hot(gt_bin, depth=bin_class_num, on_value=1, off_value=0, axis=-1), tf.float32)
+        pred_res = tf.reduce_sum(pred_res * gt_bin_onehot, axis=-1)
+        res_loss = model_util.huber_loss((pred_res - gt_res) * pmask, delta=1.)
+        res_loss = tf.identity(tf.reduce_sum(res_loss) / norm_param, 'res_%s'%scope)
+        tf.summary.scalar('res_%s'%scope, res_loss)
+        tf.add_to_collection(tf.GraphKeys.LOSSES, res_loss)
+         
 

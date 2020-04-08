@@ -131,10 +131,10 @@ __global__ void points_pooling_grad_gpu(const int bs, const int proposal_num, co
         int channel_idx = point_inds % channel_num;
 
         int cur_sample_idx = out_idx_idx % sample_num;
-        if (cur_sample_idx >= sample_num_lists_idx[0])
+        if (cur_sample_idx >= sampled_num_lists[sample_num_lists_idx])
             continue;
 
-        int* cur_out_idx = out_idx + out_idx_idx;
+        const int* cur_out_idx = out_idx + out_idx_idx;
         float* cur_pc_grad = pc_grad + proposal_idx * point_num * channel_num + 
                              cur_out_idx[0] * channel_num + channel_idx; 
         atomicAdd(&cur_pc_grad[0], features_grad[point_inds]);
@@ -145,11 +145,11 @@ __global__ void points_pooling_grad_gpu(const int bs, const int proposal_num, co
 void pointsPoolingLauncher(const int bs, const int proposal_num, const int point_num, const int channel_num, 
     const int l, const int h, const int w, const int sample_num, 
     const float* pc, const float* box_3d, const float* pc_loc, 
-    float* out_features, int* out_idx, int *sampled_num_lists, float* pillars);{
+    float* out_features, int* out_idx, int *sampled_num_lists, float* pillars){
 
     points_pooling_gpu<<<block_num, threadsPerBlock>>>(
         bs, proposal_num, point_num, channel_num,
-        l_, h_, w_, sample_num_,
+        l, h, w, sample_num,
         pc, box_3d, pc_loc,
         out_features, out_idx, sampled_num_lists, pillars
     );

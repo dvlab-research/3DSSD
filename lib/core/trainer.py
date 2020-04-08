@@ -7,6 +7,8 @@ import importlib
 import datetime
 import time
 
+import dataset.maps_dict as maps_dict
+
 from tensorflow.python import pywrap_tensorflow
 from tensorflow.python.client import device_lib as _device_lib
 
@@ -37,6 +39,9 @@ class trainer:
         self.max_iteration = cfg.TRAIN.CONFIG.MAX_ITERATIONS
         self.checkpoint_interval = cfg.TRAIN.CONFIG.CHECKPOINT_INTERVAL
         self.summary_interval = cfg.TRAIN.CONFIG.SUMMARY_INTERVAL
+        self.trainable_param_prefix = cfg.TRAIN.CONFIG.TRAIN_PARAM_PREFIX        
+        self.trainable_loss_prefix = cfg.TRAIN.CONFIG.TRAIN_LOSS_PREFIX
+
         self.restore_model_path = args.restore_model_path
         self.is_training = True
 
@@ -125,7 +130,7 @@ class trainer:
                     model.model_forward(self.bn_decay)
                     model_list.append(model)
 
-                    losses = tf.get_collection('losses', scope)
+                    losses = get_trainable_loss(self.trainable_loss_prefix, scope)
                     total_loss = tf.add_n(losses, name='total_loss')
                     for l in losses:
                         l_name = '/'.join(l.name.split('/')[1:])
@@ -134,7 +139,7 @@ class trainer:
                         if l_name not in losses_dict.keys():
                             losses_dict[l_name] = []
                         losses_dict[l_name].append(l)
-                    params = tf.trainable_variables()
+                    params = get_trainable_parameter(self.trainable_param_prefix)
                     grads = tf.gradients(total_loss, params)
                     clipped_gradients, gradient_norm = tf.clip_by_global_norm(grads, 5.0)
                     tower_grads.append(clipped_gradients) 
@@ -157,7 +162,6 @@ class trainer:
             # restore from a pre-trained file 
             path = os.path.expanduser(os.path.expandvars(args.restore_model_path))
             var_dict = get_variables_in_checkpoint_file(path)
-            trainable_variables = tf.trainable_variables()
             global_variables = tf.global_variables()
             variables_to_restore = {}
             for var in global_variables:
@@ -172,6 +176,7 @@ class trainer:
 
     def train(self):
         last_time = time.time()
+
         for step in range(self.max_iteration):
             if step % self.checkpoint_interval == 0: # save model
                 global_step_np = tf.train.global_step(self.sess, self.global_step) 
@@ -184,7 +189,7 @@ class trainer:
                                  os.path.join(self.log_dir, 'model'), global_step_np))
 
             feed_dict = self.feeddict_producer.create_feed_dict()
- 
+
             if step % self.summary_interval == 0:
                 cur_time = time.time()
                 time_elapsed = cur_time - last_time

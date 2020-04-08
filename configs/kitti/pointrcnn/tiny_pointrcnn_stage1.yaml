@@ -1,0 +1,132 @@
+DATASET:
+  TYPE: 'KITTI'
+  POINT_CLOUD_RANGE: (-40, 40, -5, 3, 0, 70)
+  KITTI:
+    CLS_LIST: ('Car', )
+    BASE_DIR_PATH: 'dataset/KITTI/object'
+    TRAIN_LIST: 'dataset/KITTI/object/train.txt'
+    VAL_LIST: 'dataset/KITTI/object/val.txt'
+    SAVE_NUMPY_PATH: 'data/KITTI'
+TRAIN:
+  AUGMENTATIONS:
+    OPEN: True
+    FLIP: True
+    MIXUP:
+      OPEN: True
+      SAVE_NUMPY_PATH: 'mixup_database/KITTI'
+      PC_LIST: 'train'
+      CLASS: ('Car', )
+      NUMBER: (15, )
+  CONFIG:
+    BATCH_SIZE: 4
+    GPU_NUM: 2
+    MAX_ITERATIONS: 80700 
+    CHECKPOINT_INTERVAL: 807
+    SUMMARY_INTERVAL: 10
+SOLVER:
+  TYPE: 'Adam'
+  BASE_LR: 0.002
+  STEPS: [64560]
+TEST:
+  WITH_GT: True
+  TEST_MODE: 'Recall'
+DATA_LOADER:
+  NUM_THREADS: 8 # GPU_NUM x BATCH_SIZE
+MODEL:
+  POINTS_NUM_FOR_TRAINING: 16384
+  TYPE: 'DoubleStage'
+  ONLY_FIRST_STAGE: True
+  ANGLE_CLS_NUM: 12
+  MAX_TRANSLATE_RANGE: [-3.0, -2.0, -3.0]
+  # backbones
+  NETWORK:
+    SYNC_BN: False
+    USE_GN: False
+    AGGREGATION_SA_FEATURE: False 
+    # first stage architecture
+    FIRST_STAGE:
+      ARCHITECTURE: [
+        # layer1
+        [[0], [0], [0.1, 0.5], [16,32], [[16,16,32], [32,32,64]], True,
+         [-1], ['D-FPS'], [4096],
+         -1, False, 'SA_Layer', 'rpn_layer1', False, -1, 128],
+        # layer2
+        [[1], [1], [0.5, 1.0], [16,32], [[64,64,128], [64,96,128]], True,
+         [-1], ['D-FPS'], [1024],
+         -1, False, 'SA_Layer', 'rpn_layer2', False, -1, 256], 
+        # layer3
+        [[2], [2], [1.0, 2.0], [16,32], [[128,196,256], [128,196,256]], True,
+         [-1], ['D-FPS'], [256],
+         -1, False, 'SA_Layer', 'rpn_layer3', False, -1, 256], 
+        # layer4
+        [[3], [3], [2.0, 4.0], [16,32], [[256,256,512], [256,384,512]], True,
+         [-1], ['D-FPS'], [64],
+         -1, False, 'SA_Layer', 'rpn_layer4', False, -1, 256],
+        # fp-layer4
+        [[3, 4], [3, 4], -1, -1, [512, 512], True,
+         [], [], [],
+         -1, False, 'FP_Layer', 'rpn_fp_layer4', False, -1, 256],
+        # fp-layer3
+        [[2, 5], [2, 5], -1, -1, [512, 512], True,
+         [], [], [],
+         -1, False, 'FP_Layer', 'rpn_fp_layer3', False, -1, 256],
+        # fp-layer2
+        [[1, 6], [1, 6], -1, -1, [256, 256], True,
+         [], [], [],
+         -1, False, 'FP_Layer', 'rpn_fp_layer2', False, -1, 256],
+        # fp-layer1
+        [[0, 7], [0, 7], -1, -1, [128, 128], True,
+         [], [], [],
+         -1, False, 'FP_Layer', 'rpn_fp_layer1', False, -1, 256],
+      ]
+      HEAD: [[[8], [8], 'conv1d', [], True, 'Det', 'rpn_head']]
+      # PointsPooler
+      POINTS_POOLER: ['RegionPool', ['mask', 'dist'], [128], 512, 1.0, [6, 6, 6, 10], [128], True, 'roi_pool']
+      POOLER_MASK_THRESHOLD: 0.5
+    # second stage architecture
+    SECOND_STAGE:
+      ARCHITECTURE: [
+        # layer1
+        [[1], [1], [0.2], [64], [[128, 128, 128]], True,
+         [-1], ['D-FPS'], [128],
+         -1, False, 'SA_Layer', 'rcnn_layer1', False, -1, 128],
+        # layer2
+        [[2], [2], [0.4], [64], [[128, 128, 256]], True,
+         [-1], ['D-FPS'], [32],
+         -1, False, 'SA_Layer', 'rcnn_layer2', False, -1, 256], 
+        # layer3
+        [[3], [3], [], [], [256, 256, 512], True,
+         [], [], [],
+         -1, False, 'SA_Layer_SSG_Last', 'rcnn_layer3', False, -1, 256], 
+      ]
+      HEAD: [[[0], [4], 'conv1d', [256], True, 'Det', 'rcnn_head']]
+  FIRST_STAGE: 
+    MAX_OUTPUT_NUM: 100 
+    NMS_THRESH: 0.85
+    MINIBATCH_NUM: -1 
+    REGRESSION_METHOD: 
+      TYPE: 'Bin-Anchor'
+      HALF_BIN_SEARCH_RANGE: 3.
+      BIN_CLASS_NUM: 12
+    CLS_ACTIVATION: 'Sigmoid'
+    ASSIGN_METHOD: 'Mask'
+    CORNER_LOSS: False 
+    CLASSIFICATION_LOSS:
+      TYPE: 'Focal-loss'
+      SOFTMAX_SAMPLE_RANGE: 10.0
+  SECOND_STAGE: 
+    NUM_OBJECT_POINT: 512
+    MAX_OUTPUT_NUM: 100 
+    NMS_THRESH: 0.1
+    MINIBATCH_NUM: -1 
+    REGRESSION_METHOD: 
+      TYPE: 'Log-Anchor'
+    CLS_ACTIVATION: 'Softmax'
+    ASSIGN_METHOD: 'IoU'
+    IOU_SAMPLE_TYPE: '3D'
+    CLASSIFICATION_POS_IOU: 0.55
+    CLASSIFICATION_NEG_IOU: 0.45
+    CORNER_LOSS: True
+    CLASSIFICATION_LOSS:
+      TYPE: 'Is-Not'
+      SOFTMAX_SAMPLE_RANGE: 10.0

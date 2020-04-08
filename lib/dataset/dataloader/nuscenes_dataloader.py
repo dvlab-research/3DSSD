@@ -111,6 +111,15 @@ class NuScenesDataset:
 
         self.voxel_generator = VoxelGenerator()
 
+        self.test_mode = cfg.TEST.TEST_MODE
+        if self.test_mode == 'mAP':
+            self.evaluation = self.evaluate_map
+            self.logger_and_select_best = self.logger_and_select_best_map
+        elif self.test_mode == 'Recall':
+            self.evaluation = self.evaluate_recall
+            self.logger_and_select_best = self.logger_and_select_best_recall
+        else: raise Exception('No other evaluation mode.') 
+
         if mode == 'loading':
             # data loader
             with open(self.train_list, 'rb') as f:
@@ -509,7 +518,7 @@ class NuScenesDataset:
             pred_list.extend([pred_attribute, pred_velocity])
         return pred_list
 
-    def evaluation(self, sess, feeddict_producer, pred_list, val_size, cls_thresh, log_dir):
+    def evaluate_map(self, sess, feeddict_producer, pred_list, val_size, cls_thresh, log_dir, placeholders=None):
         submissions = {}
         submissions['meta'] = dict()
         submissions['meta']['use_camera'] = False
@@ -605,7 +614,12 @@ class NuScenesDataset:
             metrics = json.load(f)
         return metrics 
 
-    def logger_and_select_best(self, metrics, log_string):
+
+    def evaluate_recall(self, sess, feeddict_producer, pred_list, val_size, cls_thresh, log_dir, placeholders=None):
+        pass
+
+
+    def logger_and_select_best_map(self, metrics, log_string):
         detail = {}
         result = f"Nusc v1.0-trainval Evaluation\n"
         final_score = []
@@ -634,3 +648,11 @@ class NuScenesDataset:
 
         cur_result = metrics['nd_score']
         return cur_result
+
+    def logger_and_select_best_recall(self, metrics, log_string):
+        pass
+
+
+    # save prediction results
+    def save_predictions(self, sess, feeddict_producer, pred_list, val_size, cls_thresh, log_dir, placeholders=None):
+        pass

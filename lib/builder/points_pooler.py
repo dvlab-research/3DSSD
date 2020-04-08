@@ -2,7 +2,7 @@ import tensorflow as tf
 import numpy as np
 
 from core.config import cfg
-from utils.tf_ops.grouping.tf_grouping import query_boxes_3d_points, group_point
+from utils.tf_ops.grouping.tf_grouping import query_boxes_3d_points, group_point, query_boxes_3d_mask
 from utils.tf_ops.points_pooling.points_pooling import points_pooling
 from utils.rotation_util import rotate_points
 from utils.pool_utils import *
@@ -13,10 +13,11 @@ class PointsPooler:
         self.pool_info_keys = pool_cfg[1] 
         self.pool_channel_list = pool_cfg[2]
         self.sample_pts_num = pool_cfg[3]
-        self.l, self.h, self.w, self.sample_num = pool_cfg[4]
-        self.vfe_channel_list = pool_cfg[5]
-        self.bn = pool_cfg[6]
-        self.scope = pool_cfg[7]
+        self.context_range = pool_cfg[4]
+        self.l, self.h, self.w, self.sample_num = pool_cfg[5]
+        self.vfe_channel_list = pool_cfg[6]
+        self.bn = pool_cfg[7]
+        self.scope = pool_cfg[8]
 
         pool_function_dict = {
             'RegionPool': self.region_pool,
@@ -24,21 +25,35 @@ class PointsPooler:
         }
         self.pool = pool_function_dict[self.pool_type] 
 
+    def get_valid_mask(self, base_xyz, pred_boxes_3d):
+        """
+        base_xyz: [bs, pts_num, 3]
+        pred_boxes_3d: [bs, proposal_num, 7]
+        """
+        expand_pred_boxes_3d = self.expand_proposals_context(pred_boxes_3d)
+        mask = query_boxes_3d_mask(base_xyz, expand_pred_boxes_3d) # bs, proposal_num, pts_num
+        mask = tf.reduce_max(mask, axis=-1) # bs, proposal_num
+        mask = tf.expand_dims(mask, axis=-1)
+        return mask
+        
+
     def region_pool(self, base_xyz, base_feature, base_mask, pred_boxes_3d, is_training, bn_decay):
         """
         base_xyz: [bs, pts_num, 3], xyz values
         base_feature: [bs, pts_num, c]
         pred_boxes_3d: [bs, proposal_num, 7]
         """ 
-        pool_xyz, pool_info, pool_feature, pool_mask = self.gather_interior_xyz_feature(base_xyz, base_feature, base_mask, pred_boxes_3d)
+        expand_pred_boxes_3d = self.expand_proposals_context(pred_boxes_3d)
+
+        pool_xyz, pool_info, pool_feature, pool_mask = self.gather_interior_xyz_feature(base_xyz, base_feature, base_mask, expand_pred_boxes_3d)
 
         # then canonical pool_xyz
-        canonical_xyz = self.canonical_xyz(pool_xyz, pred_boxes_3d)
+        canonical_xyz = self.canonical_xyz(pool_xyz, expand_pred_boxes_3d)
 
         additional_info = tf.concat([canonical_xyz, pool_info], axis=-1)
-        pool_feature = self.align_info_and_feature(additional_info, pool_feature)
+        pool_feature = self.align_info_and_feature(additional_info, pool_feature, is_training, bn_decay)
         
-        pool_output = tf.concat([canonical_xyz, pool_feature]) # bs, proposal_num, nsample, c
+        pool_output = tf.concat([canonical_xyz, pool_feature], axis=-1) # bs, proposal_num, nsample, c
 
         bs, proposal_num, nsample, c = pool_output.get_shape().as_list() 
         pool_output = tf.reshape(pool_output, [bs * proposal_num, nsample, c])
@@ -47,19 +62,23 @@ class PointsPooler:
 
 
     def points_pool(self, base_xyz, base_feature, base_mask, pred_boxes_3d, is_training, bn_decay):
-        pool_xyz, pool_info, pool_feature, pool_mask = self.gather_interior_xyz_feature(base_xyz, base_feature, base_mask, pred_boxes_3d)
+        """PointsPool cast sparse feature to dense grids
+        """
+        expand_pred_boxes_3d = self.expand_proposals_context(pred_boxes_3d)
+
+        pool_xyz, pool_info, pool_feature, pool_mask = self.gather_interior_xyz_feature(base_xyz, base_feature, base_mask, expand_pred_boxes_3d)
 
         # then canonical pool_xyz
-        canonical_xyz = self.canonical_xyz(pool_xyz, pred_boxes_3d)
+        canonical_xyz = self.canonical_xyz(pool_xyz, expand_pred_boxes_3d)
 
         # put canonical_xyz back to the center of each proposal
-        local_canonical_xyz = canonical_xyz + tf.expand_dims(pred_boxes_3d[:, :, :3], axis=2)
+        local_canonical_xyz = canonical_xyz + tf.expand_dims(expand_pred_boxes_3d[:, :, :3], axis=2)
 
         additional_info = tf.concat([local_canonical_xyz, canonical_xyz, pool_info], axis=-1)
         additional_info_channel = additional_info.get_shape().as_list()[-1]
         pool_feature = tf.concat([additional_info, pool_feature], axis=-1)
 
-        dense_feature, idx, voxel_pts_num, voxel_ctrs = points_pooling(pool_feature, pred_boxes_3d[:, :, :-1], local_canonical_xyz, l=self.l, h=self.h, w=self.w, sample_num=self.sample_num) # bs, proposal_num, l, h, w, sample_num, c 
+        dense_feature, idx, voxel_pts_num, voxel_ctrs = points_pooling(pool_feature, expand_pred_boxes_3d[:, :, :-1], local_canonical_xyz, l=self.l, h=self.h, w=self.w, sample_num=self.sample_num) # bs, proposal_num, l, h, w, sample_num, c 
      
         bs, proposal_num, _, _, _, _, channel_num = dense_feature.get_shape().as_list()
         dense_feature = tf.reshape(dense_feature, 
@@ -76,7 +95,7 @@ class PointsPooler:
 
         dense_pillars_info = dense_local_xyz - voxel_ctrs
         dense_additional_info = tf.concat([dense_canonical_xyz, dense_info, dense_pillars_info], axis=-1) # [bs * proposal_num, l*h*w, sample_num, c] 
-        dense_feature = self.align_info_and_feature(dense_additional_info, dense_feature) 
+        dense_feature = self.align_info_and_feature(dense_additional_info, dense_feature, is_training, bn_decay) 
 
         # finally VFE layer
         dense_feature = align_channel_network(dense_feature, self.vfe_channel_list, self.bn, is_training, bn_decay, '%s/vfe'%self.scope) 
@@ -88,7 +107,7 @@ class PointsPooler:
         return dense_feature, pool_mask
 
         
-    def align_info_and_feature(self, additional_info, pool_feature):         
+    def align_info_and_feature(self, additional_info, pool_feature, is_training, bn_decay):
         """
         Encode additional information, and concatenate with pool_feature
         """
@@ -112,10 +131,10 @@ class PointsPooler:
         pool_info_list = []
         pool_info_dict = {
             'mask': group_point(base_mask, pool_idx),
-            'dist': tf.norm(pool_xyz, axis=-1, keepdims=True), 
+            'dist': tf.norm(pool_xyz, axis=-1, keep_dims=True), 
         }
         for key in self.pool_info_keys:
-            pool_info_list.append(pool_xyz_dict[key]) 
+            pool_info_list.append(pool_info_dict[key]) 
         pool_info = tf.concat(pool_info_list, axis=-1) # [bs, proposal_num, nsample, c1]
         
         return pool_xyz, pool_info, pool_feature, pool_mask
@@ -135,3 +154,17 @@ class PointsPooler:
         # then rotate normalized_xyz
         canonical_xyz = rotate_points(normalized_xyz, -proposals[:, :, -1]) 
         return canonical_xyz
+
+
+    def expand_proposals_context(self, pred_boxes_3d):
+        """
+        Expand proposals with context range
+        pred_boxes_3d: [bs, proposal_num, 7]
+        """
+        pred_boxes_ctr = tf.slice(pred_boxes_3d, [0, 0, 0], [-1, -1, 3])
+        pred_boxes_size = tf.slice(pred_boxes_3d, [0, 0, 3], [-1, -1, 3])
+        pred_boxes_ry = tf.slice(pred_boxes_3d, [0, 0, 6], [-1, -1, -1])
+
+        pred_boxes_size += self.context_range 
+        expand_pred_boxes_3d = tf.concat([pred_boxes_ctr, pred_boxes_size, pred_boxes_ry], axis=-1)
+        return expand_pred_boxes_3d

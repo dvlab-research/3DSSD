@@ -20,7 +20,7 @@ def query_boxes_3d_mask(xyz, boxes_3d):
     Return:
         mask: [b, num_proposals, n], whether inside the corners or not
     """
-    return grouping_module.query_boxes_3d_mask(xyz, boxes_3d)
+    return grouping_module.query_boxes3d_mask(xyz, boxes_3d)
 ops.NoGradient('QueryBoxes3dMask')
 
 def query_points_iou(xyz, anchors_3d, gt_boxes_3d, iou_matrix):
@@ -33,7 +33,7 @@ def query_points_iou(xyz, anchors_3d, gt_boxes_3d, iou_matrix):
     Return:
         iou_points: [b, anchors_num, gt_num]
     """
-    return grouping_module.query_points_iou(xyz, boxes_3d)
+    return grouping_module.query_points_iou(xyz, anchors_3d, gt_boxes_3d, iou_matrix)
 ops.NoGradient('QueryPointsIou')
 
 def query_boxes_3d_points(nsample, xyz, proposals):
@@ -46,7 +46,7 @@ def query_boxes_3d_points(nsample, xyz, proposals):
         idx: [bs, proposal_num, nsample]
         pts_cnt: [bs, proposal_num]
     """
-    return grouping_module.query_boxes_3d_points(xyz, proposals, nsample)
+    return grouping_module.query_boxes3d_points(xyz, proposals, nsample)
 ops.NoGradient('QueryBoxes3dPoints')
 
 

@@ -34,7 +34,7 @@ class TargetAssigner:
         elif self.assign_method == 'Mask':
             self.assign_targets_anchors = self.mask_assign_targets_anchors
 
-    def assign(self, points, anchors_3d, gt_boxes_3d, gt_labels, gt_angle_cls, gt_angle_res, gt_velocity, gt_attribute):
+    def assign(self, points, anchors_3d, gt_boxes_3d, gt_labels, gt_angle_cls, gt_angle_res, gt_velocity, gt_attribute, valid_mask=None):
         """
         points: [bs, points_num, 3]
         anchors_3d: [bs, points_num, cls_num, 7]
@@ -49,7 +49,10 @@ class TargetAssigner:
         """
         bs, points_num, cls_num, _ = anchors_3d.get_shape().as_list()
 
-        assigned_idx, assigned_pmask, assigned_nmask = self.assign_targets_anchors(points, anchors_3d, gt_boxes_3d, gt_labels) # [bs, points_num, cls_num] 
+        if valid_mask is None:
+            valid_mask = tf.ones([bs, points_num, cls_num], dtype=points.dtype)
+
+        assigned_idx, assigned_pmask, assigned_nmask = self.assign_targets_anchors(points, anchors_3d, gt_boxes_3d, gt_labels, valid_mask) # [bs, points_num, cls_num] 
 
         assigned_gt_labels = self.gather_class(gt_labels, assigned_idx) # [bs, points_num, cls_num]
         assigned_gt_labels = assigned_gt_labels * tf.cast(assigned_pmask, tf.int32)
@@ -84,13 +87,14 @@ class TargetAssigner:
         return assigned_gt_labels
         
 
-    def iou_assign_targets_anchors(self, points, anchors_3d, gt_boxes_3d, gt_labels):
+    def iou_assign_targets_anchors(self, points, anchors_3d, gt_boxes_3d, gt_labels, valid_mask):
         """
         Assign targets for each anchor
         points: [bs, points_num, 3]
         anchors_3d: [bs, points_num, cls_num, 7]
         gt_boxes_3d: [bs, gt_boxes_3d, 7]
         gt_labels: [bs, gt_boxes_3d]
+        valid_mask: [bs, points_num, cls_num]
 
         Return:
         assigned_idx: [bs, points_num, cls_num], int32, the index of groundtruth
@@ -112,7 +116,9 @@ class TargetAssigner:
             iou_matrix = query_points_iou(points, anchors_3d_reshape, gt_boxes_3d, iou_3d)
         iou_matrix = tf.reshape(iou_matrix, [bs, points_num, cls_num, gt_num])
         
-        assigned_idx, assigned_pmask, assigned_nmask = tf.py_func(gt_sampler.iou_assign_targets_anchors_np, [iou_matrix, points, anchors_3d, gt_boxes_3d, gt_labels, self.minibatch_size, self.positive_ratio, self.pos_iou, self.neg_iou, self.effective_sample_range], [tf.int32, tf.float32, tf.float32])
+        assigned_idx, assigned_pmask, assigned_nmask = tf.py_func(gt_sampler.iou_assign_targets_anchors_np, 
+            [iou_matrix, points, anchors_3d, gt_boxes_3d, gt_labels, self.minibatch_size, self.positive_ratio, self.pos_iou, self.neg_iou, self.effective_sample_range, valid_mask], 
+            [tf.int32, tf.float32, tf.float32])
  
         assigned_idx = tf.reshape(assigned_idx, [bs, points_num, cls_num])
         assigned_pmask = tf.reshape(assigned_pmask, [bs, points_num, cls_num])
@@ -120,13 +126,14 @@ class TargetAssigner:
         return assigned_idx, assigned_pmask, assigned_nmask
 
 
-    def mask_assign_targets_anchors(self, points, anchors_3d, gt_boxes_3d, gt_labels):
+    def mask_assign_targets_anchors(self, points, anchors_3d, gt_boxes_3d, gt_labels, valid_mask):
         """
         Assign targets for each anchor
         points: [bs, points_num, 3]
         anchors_3d: [bs, points_num, cls_num, 3] centers of anchors
         gt_boxes_3d: [bs, gt_boxes_3d, 7]
         gt_labels: [bs, gt_boxes_3d]
+        valid_mask: [bs, points_num, cls_num]
 
         Return:
         assigned_idx: [bs, points_num, cls_num], int32, the index of groundtruth
@@ -137,7 +144,9 @@ class TargetAssigner:
         gt_num = tf.shape(gt_boxes_3d)[1]
 
         # then let's calculate whether a point is within a gt_boxes_3d
-        assigned_idx, assigned_pmask, assigned_nmask = tf.py_func(gt_sampler.mask_assign_targets_anchors_np, [points, anchors_3d, gt_boxes_3d, gt_labels, self.minibatch_size, self.positive_ratio, self.pos_iou, self.neg_iou, self.effective_sample_range], [tf.int32, tf.float32, tf.float32])
+        assigned_idx, assigned_pmask, assigned_nmask = tf.py_func(gt_sampler.mask_assign_targets_anchors_np, 
+            [points, anchors_3d, gt_boxes_3d, gt_labels, self.minibatch_size, self.positive_ratio, self.pos_iou, self.neg_iou, self.effective_sample_range, valid_mask], 
+            [tf.int32, tf.float32, tf.float32])
 
         assigned_idx = tf.reshape(assigned_idx, [bs, points_num, cls_num])
         assigned_pmask = tf.reshape(assigned_pmask, [bs, points_num, cls_num])

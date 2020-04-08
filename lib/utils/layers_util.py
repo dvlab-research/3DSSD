@@ -179,9 +179,12 @@ def pointnet_sa_module_msg(xyz, points, radius_list, nsample_list,
 
             new_points *= tf.expand_dims(pts_cnt_fmask, axis=-1)
             new_points_list.append(new_points)
-        new_points_concat = tf.concat(new_points_list, axis=-1)
-        if cfg.MODEL.NETWORK.AGGREGATION_SA_FEATURE:
-            new_points_concat = tf_util.conv1d(new_points_concat, aggregation_channel, 1, padding='VALID', bn=bn, is_training=is_training, scope='ensemble', bn_decay=bn_decay) 
+        if len(new_points_list) > 0:
+            new_points_concat = tf.concat(new_points_list, axis=-1)
+            if cfg.MODEL.NETWORK.AGGREGATION_SA_FEATURE:
+                new_points_concat = tf_util.conv1d(new_points_concat, aggregation_channel, 1, padding='VALID', bn=bn, is_training=is_training, scope='ensemble', bn_decay=bn_decay) 
+        else: 
+            new_points_concat = gather_point(points, fps_idx) 
 
     return new_xyz, new_points_concat, fps_idx
 

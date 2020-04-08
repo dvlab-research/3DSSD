@@ -1,8 +1,3 @@
-/* Furthest point sampling
- * Original author: Haoqiang Fan
- * Modified by Charles R. Qi
- * All Rights Reserved. 2017. 
- */
 #include <cstdio>
 #include "tensorflow/core/framework/op.h"
 #include "tensorflow/core/framework/op_kernel.h"
@@ -87,6 +82,20 @@ REGISTER_OP("GatherPointGrad")
   .Output("inp_g: float32") // [b, n, c]
   .SetShapeFn([](::tensorflow::shape_inference::InferenceContext* c) {
     c->set_output(0, c->input(0));
+    return Status::OK();
+  });
+REGISTER_OP("GatherByMask")
+  .Attr("proposal_num: int")
+  .Input("inp: float32")
+  .Input("mask: float32")
+  .Output("out: float32")
+  .SetShapeFn([](::tensorflow::shape_inference::InferenceContext* c) {
+    ::tensorflow::shape_inference::ShapeHandle dims1; // batch_size * points_num * c
+    c->WithRank(c->input(0), 3, &dims1);
+    int proposal_num;
+    TF_RETURN_IF_ERROR(c->GetAttr("proposal_num", &proposal_num));
+    ::tensorflow::shape_inference::ShapeHandle output = c->MakeShape({c->Dim(dims1, 0), proposal_num, c->Dim(dims1, 2)});
+    c->set_output(0, output);
     return Status::OK();
   });
 
@@ -280,3 +289,36 @@ class GatherPointGradGpuOp: public OpKernel{
 };
 REGISTER_KERNEL_BUILDER(Name("GatherPointGrad").Device(DEVICE_GPU),GatherPointGradGpuOp);
 
+
+void GatherByMaskLauncher(int b,int n,int c,int proposal_num,const float *inp,const float *mask,float *out);
+class GatherByMaskGpuOp: public OpKernel{
+  public:
+    explicit GatherByMaskGpuOp(OpKernelConstruction * context):OpKernel(context){
+        OP_REQUIRES_OK(context, context->GetAttr("proposal_num", &proposal_num_));
+        OP_REQUIRES(context, proposal_num_ > 0, errors::InvalidArgument("GatherByMask expects positive proposal number"));
+    }
+    void Compute(OpKernelContext * context)override{
+      const Tensor& inp_tensor=context->input(0);
+      OP_REQUIRES(context,inp_tensor.dims()==3,errors::InvalidArgument("GatherByMask expects (bs,num_points,c) inp shape"));
+      int b=inp_tensor.shape().dim_size(0);
+      int n=inp_tensor.shape().dim_size(1);
+      int c=inp_tensor.shape().dim_size(2);
+
+      const Tensor& mask_tensor =context->input(1);
+      OP_REQUIRES(context,mask_tensor.dims()==2 && mask_tensor.shape().dim_size(0)==b && mask_tensor.shape().dim_size(1)==n,errors::InvalidArgument("GatherByMask expects (bs,num_points) mask shape"));
+
+      auto inp_flat=inp_tensor.flat<float>();
+      const float *inp = &(inp_flat(0));
+      auto mask_flat = mask_tensor.flat<float>();
+      const float* mask = &(mask_flat(0));
+
+      Tensor *out_tensor=NULL;
+      OP_REQUIRES_OK(context,context->allocate_output(0,TensorShape{b,proposal_num_,c},&out_tensor));
+      auto out_flat=out_tensor->flat<float>();
+      float *out=&(out_flat(0));
+      GatherByMaskLauncher(b,n,c,proposal_num_,inp,mask,out);
+    }
+    private:
+        int proposal_num_;
+};
+REGISTER_KERNEL_BUILDER(Name("GatherByMask").Device(DEVICE_GPU),GatherByMaskGpuOp);

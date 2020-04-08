@@ -68,13 +68,13 @@ class DataAugmentor:
         points_i = points[:, 3:]
         points = points[:, :3]
 
-        if choice[0] >= self.single_aug_prob[0]:
+        if choice[0] <= self.single_aug_prob[0]:
             gt_boxes_mask = np.ones([label_boxes_3d.shape[0]], np.bool_)
             label_boxes_3d, points = noise_per_object_v3_(label_boxes_3d, points, valid_mask=gt_boxes_mask, rotation_perturb=cfg.TRAIN.AUGMENTATIONS.SINGLE_AUG.ROTATION_PERTURB, center_noise_std=cfg.TRAIN.AUGMENTATIONS.SINGLE_AUG.CENTER_NOISE_STD, random_scale_range=cfg.TRAIN.AUGMENTATIONS.SINGLE_AUG.RANDOM_SCALE_RANGE, global_random_rot_range=[0., 0.], scale_3_dims=cfg.TRAIN.AUGMENTATIONS.SINGLE_AUG.SCALE_3_DIMS, sem_labels=sem_labels)
             label_boxes_3d = label_boxes_3d[gt_boxes_mask]
             label_classes = label_classes[gt_boxes_mask]
 
-        if choice[1] >= self.single_aug_prob[1]:
+        if choice[1] <= self.single_aug_prob[1]:
             random_angle = (np.random.rand() * 2 - 1) * cfg.TRAIN.AUGMENTATIONS.RANDOM_ROTATION_RANGE
             rot_matrix = rotation_util.roty(random_angle)
             points_transpose = np.transpose(points) # [3, n]
@@ -88,7 +88,7 @@ class DataAugmentor:
             label_boxes_3d[:, :3] = box_3d_center
             label_boxes_3d[:, -1] += random_angle 
             
-        if choice[2] >= self.single_aug_prob[2]:
+        if choice[2] <= self.single_aug_prob[2]:
             random_scale = (np.random.rand() * 2 - 1) * cfg.TRAIN.AUGMENTATIONS.RANDOM_SCALE_RANGE + 1
             points[:, :3] = points[:, :3] * random_scale
             label_boxes_3d[:, :6] = label_boxes_3d[:, :6] * random_scale
@@ -140,13 +140,13 @@ class DataAugmentor:
         points_i = points[:, 3:]
         points = points[:, :3]
 
-        if choice[0] >= self.single_aug_prob[0]:
+        if choice[0] <= self.single_aug_prob[0]:
             # randomly flip
             points = kitti_aug.flip_points(points)
             label_boxes_3d = kitti_aug.flip_boxes_3d(label_boxes_3d)
             label_velocity[:, 0] = -label_velocity[:, 0]
 
-        if choice[1] >= self.single_aug_prob[1]:
+        if choice[1] <= self.single_aug_prob[1]:
             random_angle = (np.random.rand() * 2 - 1) * cfg.TRAIN.AUGMENTATIONS.RANDOM_ROTATION_RANGE
             rot_matrix = kitti_util.roty(random_angle)
 
@@ -167,7 +167,7 @@ class DataAugmentor:
             label_velocity = np.transpose(label_velocity) # [n, 3]
             label_velocity = label_velocity[:, [0, 2]]
             
-        if choice[2] >= self.single_aug_prob[2]:
+        if choice[2] <= self.single_aug_prob[2]:
             random_scale = (np.random.rand() * 2 - 1) * cfg.TRAIN.AUGMENTATIONS.RANDOM_SCALE_RANGE + 1
             points[:, :3] = points[:, :3] * random_scale
             label_boxes_3d[:, :6] = label_boxes_3d[:, :6] * random_scale

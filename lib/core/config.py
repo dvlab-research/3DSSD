@@ -130,14 +130,11 @@ __C.TRAIN.CONFIG.SUMMARY_IMG_IMAGES = True
 
 __C.TRAIN.CONFIG.SUMMARY_BEV_IMAGES = True
 
-# STD training
-__C.TRAIN.CONFIG.ONLY_IOU_BRANCH = False
+# List of the prefix of trainable parameters
+__C.TRAIN.CONFIG.TRAIN_PARAM_PREFIX = []
 
-__C.TRAIN.CONFIG.ONLY_TRAIN_BEV_IOU_BRANCH = False
-
-__C.TRAIN.CONFIG.FIX_BN_LAYER = False
-
-__C.TRAIN.CONFIG.FIX_IMG_FEATURE_EXTRACTOR = False
+# List of prefix of trainable loss 
+__C.TRAIN.CONFIG.TRAIN_LOSS_PREFIX = []
 
 
 # ---------------------------------------------------------------------------- #
@@ -159,6 +156,9 @@ __C.TEST = AttrDict()
 # load or not load gt
 __C.TEST.WITH_GT = True
 
+# test mode
+__C.TEST.TEST_MODE = 'mAP' # mAP or Recall
+
 # ---------------------------------------------------------------------------- #
 # Model options
 # ---------------------------------------------------------------------------- #
@@ -171,6 +171,9 @@ __C.MODEL.USING_ORIGIN_PLANE = False
 
 # SingleStage or DoubleStage
 __C.MODEL.TYPE = 'SingleStage'
+
+# if true, only train and inference first stage
+__C.MODEL.ONLY_FIRST_STAGE = False
 
 # Paths config
 __C.MODEL.PATH = AttrDict()
@@ -252,12 +255,13 @@ __C.MODEL.NETWORK.FIRST_STAGE.HEAD = [[[6], [6], 'conv1d', [128,], True, 'Det', 
 # 1: additional information keys: ['r', 'mask', 'dist']
 # 2: align_mlp_list
 # 3: sample_pts_num
-# 4: pool_size, [l,h,w, sample_num] for PointsPool only
-# 5: vfe_channel_list, for PointsPool only 
-# 5: bn
-# 6: scope
+# 4: extend context range
+# 5: pool_size, [l,h,w, sample_num] for PointsPool only
+# 6: vfe_channel_list, for PointsPool only 
+# 7: bn
+# 8: scope
 #################################################
-__C.MODEL.NETWORK.FIRST_STAGE.POINTS_POOLER = ['RegionPool', ['mask', 'dist'], [128], 512, [6, 6, 6, 10], [128], True, 'roi_pool']
+__C.MODEL.NETWORK.FIRST_STAGE.POINTS_POOLER = ['RegionPool', ['mask', 'dist'], [128], 512, 1.0, [6, 6, 6, 10], [128], True, 'roi_pool']
 
 __C.MODEL.NETWORK.FIRST_STAGE.POOLER_MASK_THRESHOLD = 0.5
 
@@ -300,8 +304,13 @@ __C.MODEL.FIRST_STAGE.MINIBATCH_NUM = 64
 __C.MODEL.FIRST_STAGE.MINIBATCH_RATIO = 0.25
 # whether using points iou to sample anchors
 __C.MODEL.FIRST_STAGE.POINTS_SAMPLE_IOU = False
-# Log-Anchor, Dist-Anchor, Dist-Anchor-free
-__C.MODEL.FIRST_STAGE.REGRESSION_METHOD = 'Dist-Anchor' 
+# Regression method
+__C.MODEL.FIRST_STAGE.REGRESSION_METHOD = AttrDict()
+# Log-Anchor, Dist-Anchor, Dist-Anchor-free, Bin-Anchor
+__C.MODEL.FIRST_STAGE.REGRESSION_METHOD.TYPE = 'Dist-Anchor'
+# for bin loss
+__C.MODEL.FIRST_STAGE.REGRESSION_METHOD.HALF_BIN_SEARCH_RANGE = 3.
+__C.MODEL.FIRST_STAGE.REGRESSION_METHOD.BIN_CLASS_NUM = 12
 # for nuscenes
 __C.MODEL.FIRST_STAGE.REGRESSION_MULTI_HEAD = False
 __C.MODEL.FIRST_STAGE.MULTI_HEAD_DISTRUBUTE = [['car'], ['construction_vehicle', 'truck'], ['bus', 'trailer'], ['barrier'], ['motorcycle', 'bicycle'], ['pedestrian', 'traffic_cone']]
@@ -332,7 +341,12 @@ __C.MODEL.SECOND_STAGE.MAX_OUTPUT_NUM = 100
 __C.MODEL.SECOND_STAGE.MINIBATCH_NUM = 64
 __C.MODEL.SECOND_STAGE.MINIBATCH_RATIO = 0.25
 # Log-Anchor, Dist-Anchor, Dist-Anchor-free
-__C.MODEL.SECOND_STAGE.REGRESSION_METHOD = 'Dist-Anchor' 
+__C.MODEL.SECOND_STAGE.REGRESSION_METHOD = AttrDict()
+# Log-Anchor, Dist-Anchor, Dist-Anchor-free, Bin-Anchor
+__C.MODEL.SECOND_STAGE.REGRESSION_METHOD.TYPE = 'Dist-Anchor'
+# for bin loss
+__C.MODEL.SECOND_STAGE.REGRESSION_METHOD.HALF_BIN_SEARCH_RANGE = 3.
+__C.MODEL.SECOND_STAGE.REGRESSION_METHOD.BIN_CLASS_NUM = 12
 # for nuscenes
 __C.MODEL.SECOND_STAGE.REGRESSION_MULTI_HEAD = False
 __C.MODEL.SECOND_STAGE.MULTI_HEAD_DISTRUBUTE = [['car'], ['construction_vehicle', 'truck'], ['bus', 'trailer'], ['barrier'], ['motorcycle', 'bicycle'], ['pedestrian', 'traffic_cone']]

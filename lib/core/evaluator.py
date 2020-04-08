@@ -58,7 +58,7 @@ class evaluator:
 
         # model list
         self.model_func = choose_model()
-        self.model_list, self.pred_list = self._build_model_list()
+        self.model_list, self.pred_list, self.placeholders = self._build_model_list()
 
         # feeddict
         self.feeddict_producer = FeedDictCreater(self.dataset_iter, self.model_list, self.batch_size)
@@ -78,8 +78,11 @@ class evaluator:
 
         # get prediction results, bs = 1
         pred_list = self.dataset.set_evaluation_tensor(model)
+
+        # placeholders
+        placeholders = model.placeholders
         
-        return model_list, pred_list 
+        return model_list, pred_list, placeholders 
 
 
     def _log_string(self, out_str):
@@ -110,7 +113,7 @@ class evaluator:
                     self._log_string('Assign From checkpoint: %s'%self.last_eval_model_path)
 
                     self.saver.restore(sess, self.last_eval_model_path)
-                    result_list = self.dataset.evaluation(sess, self.feeddict_producer, self.pred_list, self.val_size, self.cls_thresh, self.log_dir) 
+                    result_list = self.dataset.evaluation(sess, self.feeddict_producer, self.pred_list, self.val_size, self.cls_thresh, self.log_dir, self.placeholders) 
                     cur_result = self.dataset.logger_and_select_best(result_list, self._log_string)
 
                     if cur_result > self.last_best_result:

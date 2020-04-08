@@ -23,7 +23,7 @@ def select_conv_op(op_type):
         conv_op = tf_util.fully_connected
     return conv_op
 
-def box_regression_head(feature_input, pred_cls_channel, pred_reg_base_num, bn, is_training, pred_attr_velo, conv_op, bn_decay, output_dict):
+def box_regression_head(feature_input, pred_cls_channel, pred_reg_base_num, pred_reg_channel_num, bn, is_training, pred_attr_velo, conv_op, bn_decay, output_dict):
     """
     Construct box-regression head
     """
@@ -34,8 +34,8 @@ def box_regression_head(feature_input, pred_cls_channel, pred_reg_base_num, bn, 
 
     # bounding-box prediction 
     pred_reg = conv_op(feature_input, 128, bn=bn, is_training=is_training, scope='pred_reg_base', bn_decay=bn_decay)
-    pred_reg = conv_op(pred_reg, pred_reg_base_num * (6 + cfg.MODEL.ANGLE_CLS_NUM * 2), activation_fn=None, scope='pred_reg')
-    pred_reg = tf.reshape(pred_reg, [bs, points_num, pred_reg_base_num, 6 + cfg.MODEL.ANGLE_CLS_NUM * 2])
+    pred_reg = conv_op(pred_reg, pred_reg_base_num * (pred_reg_channel_num + cfg.MODEL.ANGLE_CLS_NUM * 2), activation_fn=None, scope='pred_reg')
+    pred_reg = tf.reshape(pred_reg, [bs, points_num, pred_reg_base_num, pred_reg_channel_num + cfg.MODEL.ANGLE_CLS_NUM * 2])
 
     if pred_attr_velo: # velocity and attribute
         pred_attr = conv_op(feature_input, 128, bn=bn, is_training=is_training, scope='pred_attr_base', bn_decay=bn_decay)
@@ -50,9 +50,11 @@ def box_regression_head(feature_input, pred_cls_channel, pred_reg_base_num, bn, 
         output_dict[maps_dict.PRED_VELOCITY].append(pred_velo)
 
     output_dict[maps_dict.PRED_CLS].append(pred_cls)
-    output_dict[maps_dict.PRED_OFFSET].append(tf.slice(pred_reg, [0, 0, 0, 0], [-1, -1, -1, 6]))
-    output_dict[maps_dict.PRED_ANGLE_CLS].append(tf.slice(pred_reg, [0, 0, 0, 6], [-1, -1, -1, cfg.MODEL.ANGLE_CLS_NUM]))
-    output_dict[maps_dict.PRED_ANGLE_RES].append(tf.slice(pred_reg, [0, 0, 0, 6+cfg.MODEL.ANGLE_CLS_NUM], [-1, -1, -1, -1]))
+    output_dict[maps_dict.PRED_OFFSET].append(tf.slice(pred_reg, [0, 0, 0, 0], [-1, -1, -1, pred_reg_channel_num]))
+    output_dict[maps_dict.PRED_ANGLE_CLS].append(tf.slice(pred_reg, \
+         [0, 0, 0, pred_reg_channel_num], [-1, -1, -1, cfg.MODEL.ANGLE_CLS_NUM]))
+    output_dict[maps_dict.PRED_ANGLE_RES].append(tf.slice(pred_reg, \
+         [0, 0, 0, pred_reg_channel_num+cfg.MODEL.ANGLE_CLS_NUM], [-1, -1, -1, -1]))
 
     return
     

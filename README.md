@@ -30,7 +30,7 @@ All the codes are tested in the following environment:
 
 ### Performance and Model Zoo
 
-Some pretrained models including 3DSSD and PointRCNN are listed below, which are trained on 3712 samples and evaluated on 3769 samples. The performance on validation set is as follows:
+The results reported in paper are trained on *4 NVIDIA Tesla V100 (32G) GPUs* with batch-size 4 for each. The training GPU memory requirement is close to 26G. For less GPU memory cost and faster training process, two extra tiny versions of 3DSSD are provided. Some pretrained models are provided here as well as their performance on KITTI validation set. 
 
 <table>
     <thead>
@@ -45,17 +45,24 @@ Some pretrained models including 3DSSD and PointRCNN are listed below, which are
     <tbody>
         <tr>
             <td>3DSSD</td>
-            <td>92.07</td>
-            <td>83.62</td>
-            <td>80.67</td>
-            <td><a href="https://drive.google.com/file/d/1gl_ESp2R7pE_eJS8UbaL-Xn1uFUNg1Ha/view?usp=sharing"> model </a></td>
+            <td>91.71</td>
+            <td>83.22</td>
+            <td>80.37</td>
+            <td><a href="https://drive.google.com/open?id=1pbvyRGOknlovmIK96MwEyvV0_z76Bfks"> GoogleDrive </a></td>
         </tr>
         <tr>
-            <td>PointRCNN</td>
-            <td>88.90</td>
-            <td>79.88</td>
-            <td>78.37</td>
-            <td><a href="https://drive.google.com/open?id=1L14QisrQMyIbowhSSOf_FjaOx9CVe0oF"> model </a></td>
+            <td>tiny 3DSSD v1</td>
+            <td>91.31</td>
+            <td>82.96</td>
+            <td>80.28</td>
+            <td><a href="https://drive.google.com/open?id=1L14QisrQMyIbowhSSOf_FjaOx9CVe0oF"> GoogleDrive </a></td>
+        </tr>
+        <tr>
+            <td>tiny 3DSSD v2</td>
+            <td>89.43</td>
+            <td>82.81</td>
+            <td>80.02</td>
+            <td><a href="https://drive.google.com/open?id=1L14QisrQMyIbowhSSOf_FjaOx9CVe0oF"> GoogleDrive </a></td>
         </tr>
     </tbody>
 </table>
@@ -76,7 +83,7 @@ source activate 3dssd
 pip install -r requirements.txt --user
 ```
 
-Download and install tensorflow-1.4.0 [here](https://drive.google.com/file/d/1y5YvM9v1ji5qTh1OfS9VSkJd7bdzn4D1/view?usp=sharing) which is compiled with CUDA-9.0 and CuDNN-7.0.0.
+Download and install tensorflow-1.4.0 [here](https://drive.google.com/drive/u/0/folders/1PDYxf-n3W96gZHfLs-MsV6nAQELp0ylY) which is compiled with CUDA-9.0 and CuDNN-7.0.0.
 ```
 pip install tensorflow-1.4.0-cp36-cp36m-linux_x86_64.whl --user
 ```
@@ -96,7 +103,7 @@ export PYTHONPATH=$PYTHONPATH:/path/to/3DSSD/lib
 
 Currently we only support KITTI dataset, and NuScenes dataset will be supported as soon as possible. 
 
-(1) Please download the KITTI dataset, and arrange it as below ( please also download the estimated road planes at [here](https://drive.google.com/file/d/1d5mq0RXRnvHPVeKx6Q612z0YRO1t2wAp/view)). 
+(1) Please download the KITTI dataset and arrange it as below.
 
 ```
 .                                           (root directory)
@@ -175,7 +182,7 @@ python lib/core/trainer.py --cfg configs/kitti/3dssd/3dssd.yaml --restore_model_
 ```
 
 
-### Evaluation
+### Inference and Evaluation
 
 Evaluating a trained weight by
 ```
@@ -188,11 +195,7 @@ To evaluate all weights produced in the training process, run
 python lib/core/evaluator.py --cfg configs/kitti/3dssd/3dssd.yaml --restore_model_path /path/to/weight_dir
 ```
 
-Evaluation results will be saved in the **result** folder. 
-
-### Inference
-
-
+KITTI Detection results and evaluation results will be saved in the **result** folder. 
 
 
 ### TODO List
@@ -234,4 +237,5 @@ This repo borrows code from several repos, like [second.pytorch](https://github.
 
 ### Contact
 If you have any questions or suggestions about this repo, please feel free to contact me (tomztyang@gmail.com).
+
 

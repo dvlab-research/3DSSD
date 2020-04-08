@@ -1,0 +1,17 @@
+**__pycache__**
+*.pyc
+*.idea/
+*.so
+data/
+dataset/
+log/
+result/
+scripts
+weights
+*_compile.sh
+*_ext*
+**/build
+*.bak
+**/*.egg-info
+**/dist
+**/std

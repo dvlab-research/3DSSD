@@ -65,7 +65,7 @@ __global__ void query_boxes_3d_points_gpu(int b, int n, int m, int nsample, cons
         float h = cur_proposal[4];
         float w = cur_proposal[5];
         float ry= cur_proposal[6];
-        float max_distance = max(sqrtf((l / 2.) * (l / 2.)+(w / 2.)*(w / 2.)),1e-20f)
+        float max_distance = max(sqrtf((l / 2.) * (l / 2.)+(w / 2.)*(w / 2.)),1e-20f);
 
         float x, y, z;
         int inside;
@@ -162,7 +162,7 @@ __global__ void query_points_iou_gpu(int b, int n, int anchors_num, int gt_num,
 
         float* cur_iou_points;
         cur_iou_points = iou_points + point_inds;
-        int in = 0, un = 0
+        int in = 0, un = 0;
 
         float gt_boxes_cx= cur_gt_boxes_3d[0];
         float gt_boxes_by= cur_gt_boxes_3d[1];
@@ -203,6 +203,7 @@ __global__ void query_points_iou_gpu(int b, int n, int anchors_num, int gt_num,
             un += (inside_gt | inside_anchors);
             in += (inside_gt & inside_anchors);
         }
+        un = max(un, 1);
         cur_iou_points[0] = float(in) / float(un);
     }
 }

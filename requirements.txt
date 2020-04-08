@@ -1,4 +1,3 @@
-tensorflow-gpu==1.4.0
 llvmlite==0.28.0
 numba==0.43.0
 numpy
@@ -15,5 +14,5 @@ pyyaml
 msgpack
 msgpack-numpy
 setproctitle
-# mayavi
+mayavi
 

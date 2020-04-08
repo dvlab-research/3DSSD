@@ -8,8 +8,6 @@ import sys
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(BASE_DIR)
 import utils.tf_util as tf_util
-from utils.tf_ops.sampling.tf_sampling import farthest_point_sample, gather_point
-from utils.tf_ops.grouping.tf_grouping import query_corners_point, query_ball_point, group_point
 
 from core.config import cfg
 
@@ -241,3 +239,15 @@ def merge_head_prediction(start_idx, output_dict, keys):
         output_dict[key].append(merged_output)
     return 
 
+
+def cast_bottom_to_center(boxes_3d):
+    """ Cast the xyz location of a boxes_3d from bottom point to center point
+    boxes_3d: [..., 7]
+    """
+    cx, by, cz, l, h, w, ry = tf.unstack(boxes_3d, axis=-1)
+
+    # cast bottom point to center
+    cy = by - h / 2.
+
+    ctr_boxes_3d = tf.stack([cx, cy, cz, l, h, w, ry], axis=-1)
+    return ctr_boxes_3d

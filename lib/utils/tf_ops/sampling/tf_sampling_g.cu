@@ -1,8 +1,3 @@
-/* Furthest point sampling GPU implementation
- * Original author: Haoqiang Fan
- * Modified by Charles R. Qi
- * All Rights Reserved. 2017. 
- */
 #include <stdio.h>
 #include <iostream>
 #include <vector>
@@ -350,6 +345,41 @@ __global__ void scatteraddpointKernel(int b,int n,int m,int c,const float * __re
   }
 }
 
+
+// inp: [b, n, c] mask: [b, n]
+// out: [b, proposal_num, c]
+__global__ void GatherByMaskKernel(int b,int n,int c,int proposal_num,const float *inp,const float *mask,float *out){
+  for (int cur_batch=blockIdx.x; cur_batch<b; cur_batch+=gridDim.x){
+    const float *cur_inp = inp + cur_batch * n * c; 
+    const float *cur_mask = mask + cur_batch * n;
+    float* cur_out = out + cur_batch * proposal_num * c;
+
+    int proposal_cnt = 0;
+    int loop_time, tmp_channel_idx;
+    for (int cur_pts=0; cur_pts<n; cur_pts++){
+        if(int(cur_mask[cur_pts]) == 0) continue;
+        if(proposal_cnt == proposal_num) break;
+        // a valid proposal
+        if (proposal_cnt == 0){
+            loop_time = proposal_num * c;
+            for (int i=threadIdx.x; i<loop_time; i+=blockDim.x){
+                tmp_channel_idx = i % c;
+                cur_out[i] = cur_inp[cur_pts * c + tmp_channel_idx];
+            }
+            __syncthreads();
+        } 
+        else {
+            loop_time = c;
+            for (int i=threadIdx.x; i<loop_time; i+=blockDim.x){
+                cur_out[proposal_cnt * c + i] = cur_inp[cur_pts * c + i];
+            }
+            __syncthreads();
+        }
+        proposal_cnt += 1;
+    }
+  }
+}
+
 void cumsumLauncher(int b,int n,const float * inp,float * out){
   cumsumKernel<<<32,512>>>(b,n,inp,out);
 }
@@ -360,12 +390,7 @@ void probsampleLauncher(int b,int n,int m,const float * inp_p,const float * inp_
 }
 //require 32*n working space
 void farthestpointsamplingLauncher(int b,int n,int c,int m,const float * inp,float * temp,int * out){
-  // std::cout << "Beginning FPS sampling\n" << std::endl;
-  // std::vector<float> temp_cpu(b,n);
-  // CUDA_CHECK(cudaMemcpy(&temp_cpu[0], temp, sizeof(float) * b * n, cudaMemcpyDeviceToHost));
-  // std::cout << temp_cpu[0] << std::endl;
   farthestpointsamplingKernel<1024><<<b,1024>>>(b,n,c,m,inp,temp,out);
-  // std::cout << "Done!!\n" << std::endl;
 }
 //require 32*n working space
 void farthestpointsamplingwithdistLauncher(int b,int n,int m,const float * inp,float * temp,int * out){
@@ -382,5 +407,9 @@ void gatherpointLauncher(int b,int n,int m,int c,const float * inp,const int * i
 }
 void scatteraddpointLauncher(int b,int n,int m,int c,const float * out_g,const int * idx,float * inp_g){
   scatteraddpointKernel<<<block_num,threadsPerBlock>>>(b,n,m,c,out_g,idx,inp_g);
+}
+
+void GatherByMaskLauncher(int b,int n,int c,int proposal_num,const float *inp,const float *mask,float *out){
+  GatherByMaskKernel<<<block_num,threadsPerBlock>>>(b,n,c,proposal_num,inp,mask,out);
 }
 

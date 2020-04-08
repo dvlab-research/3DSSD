@@ -31,6 +31,22 @@ def encode_angle2class_tf(angle, num_class):
     # finally normalize residual angle to [0, 1]
     residual_angle = residual_angle / angle_per_class
     return class_id, residual_angle
+
+
+###########################################################
+# Encode PointRCNN Bin
+###########################################################
+def encode_bin_residual(assigned_res, half_bin_search_range, bin_num_class):
+    """ Encode assigned_residual to bin_class and bin_residual
+    """
+    bin_interval_range = half_bin_search_range * 2 / bin_num_class
+    bin_cls = tf.floor((assigned_res + half_bin_search_range) / bin_interval_range)
+    bin_cls = tf.minimum(tf.maximum(0., bin_cls), float(bin_num_class - 1))
+
+    bin_res = assigned_res + half_bin_search_range \
+             - (bin_cls * bin_interval_range + bin_interval_range / 2.)
+    bin_res = bin_res / bin_interval_range
+    return bin_cls, bin_res
     
 
 
@@ -181,3 +197,34 @@ def encode_dist_anchor_free_np(gt_ctr, gt_offset, anchor_ctr, anchor_offset=None
     encoded_ctr = encoded_ctr - anchor_ctr
     return encoded_ctr, target_ctr_half
     
+
+###########################################################
+# Bin-Anchor
+###########################################################
+# tf
+def encode_bin_anchor(gt_ctr, gt_offset, anchor_ctr, anchor_offset, half_bin_search_range, bin_num_class):
+    """
+    Encoding PointRCNN bin label 
+    :param:
+        gt_ctr: [bs, points_num, 3]
+        gt_offset: [bs, points_num, 3]
+        anchor_ctr: [bs, points_num, 3]
+        anchor_offset: [bs, points_num, 3]
+    :return:
+        encoded_ctr: [bs, points_num, 3]
+        encoded_offset: [bs, points_num, 3]
+    """
+    gt_x, gt_y, gt_z = tf.unstack(gt_ctr, axis=-1)
+    anchor_x, anchor_y, anchor_z = tf.unstack(anchor_ctr, axis=-1)
+
+    x_bin, x_res = encode_bin_residual(gt_x - anchor_x, half_bin_search_range, bin_num_class)
+    z_bin, z_res = encode_bin_residual(gt_z - anchor_z, half_bin_search_range, bin_num_class)
+
+    y_res = gt_y - anchor_y
+    y_res = tf.expand_dims(y_res, axis=-1)
+    offset = gt_offset - anchor_offset
+     
+    encoded_ctr = tf.stack([x_bin, x_res, z_bin, z_res], axis=-1)
+    encoded_offset = tf.concat([y_res, offset], axis=-1)
+
+    return encoded_ctr, encoded_offset 
