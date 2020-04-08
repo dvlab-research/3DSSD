@@ -96,7 +96,7 @@ export PYTHONPATH=$PYTHONPATH:/path/to/3DSSD/lib
 
 Currently we only support KITTI dataset, and NuScenes dataset will be supported as soon as possible. 
 
-(1) Please download the KITTI dataset and arrange it as below.
+(1) Please download the KITTI dataset and arrange it as below (please also download road planes at [here](https://drive.google.com/file/d/1d5mq0RXRnvHPVeKx6Q612z0YRO1t2wAp/view), which are useful in data augmentation).
 
 ```
 .                                           (root directory)
