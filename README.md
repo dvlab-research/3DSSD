@@ -30,7 +30,7 @@ All the codes are tested in the following environment:
 
 ### Performance and Model Zoo
 
-The results reported in paper are trained on *4 NVIDIA Tesla V100 (32G) GPUs* with batch-size 4 for each. The training GPU memory requirement is close to 26G. For less GPU memory cost and faster training process, two extra tiny versions of 3DSSD are provided. Some pretrained models are provided here as well as their performance on KITTI validation set. 
+Some pretrained models including 3DSSD and PointRCNN are listed below with their performance, which are trained on 3,717 training samples and evaluated on 3,769 testing samples.
 
 <table>
     <thead>
@@ -45,23 +45,16 @@ The results reported in paper are trained on *4 NVIDIA Tesla V100 (32G) GPUs* wi
     <tbody>
         <tr>
             <td>3DSSD</td>
-            <td>91.71</td>
-            <td>83.22</td>
-            <td>80.37</td>
-            <td><a href="https://drive.google.com/open?id=1pbvyRGOknlovmIK96MwEyvV0_z76Bfks"> GoogleDrive </a></td>
+            <td>92.07</td>
+            <td>83.62</td>
+            <td>80.67</td>
+            <td><a href="https://drive.google.com/file/d/1gl_ESp2R7pE_eJS8UbaL-Xn1uFUNg1Ha/view?usp=sharing"> model </a></td>
         </tr>
         <tr>
-            <td>tiny 3DSSD v1</td>
-            <td>91.31</td>
-            <td>82.96</td>
-            <td>80.28</td>
-            <td><a href="https://drive.google.com/open?id=1L14QisrQMyIbowhSSOf_FjaOx9CVe0oF"> GoogleDrive </a></td>
-        </tr>
-        <tr>
-            <td>tiny 3DSSD v2</td>
-            <td>89.43</td>
-            <td>82.81</td>
-            <td>80.02</td>
+            <td>PointRCNN</td>
+            <td>88.91</td>
+            <td>79.88</td>
+            <td>78.37</td>
             <td><a href="https://drive.google.com/open?id=1L14QisrQMyIbowhSSOf_FjaOx9CVe0oF"> GoogleDrive </a></td>
         </tr>
     </tbody>
