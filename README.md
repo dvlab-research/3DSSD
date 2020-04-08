@@ -13,7 +13,7 @@ Currently, there have been many kinds of voxel-based 3D single stage detectors, 
 
 
 <div align="center">
- <img src="doc/framework.png">
+ <img src="docs/framework.png">
  <p><font size="2">3DSSD consists of three components. (a) Backbone network. It takes the raw point cloud as input, and generates global features for all representative points through several SA layers with fusion sampling (FS) strategy. (b) Candidate generation layer (CG). It downsamples, shifts and extracts features for representative points after SA layers. (c) Anchor-free prediction head.</font></p>
 </div>
 
@@ -21,7 +21,7 @@ Currently, there have been many kinds of voxel-based 3D single stage detectors, 
 
 ### Results on KITTI test set
 
-<p align="center"> <img src="doc/results.jpg" width="80%"></p>
+<p align="center"> <img src="docs/results.jpg" width="80%"></p>
 
 ### Requirements
 All the codes are tested in the following environment:
@@ -54,7 +54,6 @@ The results reported in paper are trained *4 NVIDIA Tesla V100 (32G) GPUs* with 
         </tr>
         <tr>
             <td>tiny 3DSSD v1</td>
-            <td rowspan=2>27</td>
             <td>91.31</td>
             <td>82.96</td>
             <td>80.28</td>
