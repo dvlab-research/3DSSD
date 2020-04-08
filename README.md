@@ -199,6 +199,7 @@ In order to test a model and store its prediction results, run
 ```
 python lib/core/tester.py --cfg configs/kitti/3dssd/3dssd.yaml --restore_model_path /path/to/weight
 ```
+These results will be saved at **/path/to/weight/kitti_result**.
 
 
 ### TODO List
