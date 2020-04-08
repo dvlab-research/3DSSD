@@ -411,24 +411,18 @@ class KittiDataset:
 
         log_string('precision_image:')
         # [NUM_CLASS, E/M/H], NUM_CLASS: Car, Pedestrian, Cyclist
-        # precision_img_res = precision_img_op[:, :, 1:]
-        # precision_img_res = np.sum(precision_img_res, axis=-1) / 40.
-        precision_img_res = precision_img_op[:, :, ::4]
-        precision_img_res = np.sum(precision_img_res, axis=-1) / 11.
+        precision_img_res = precision_img_op[:, :, 1:]
+        precision_img_res = np.sum(precision_img_res, axis=-1) / 40.
         log_string(str(precision_img_res))
 
         log_string('precision_ground:')
-        # precision_ground_res = precision_ground_op[:, :, 1:]
-        # precision_ground_res = np.sum(precision_ground_res, axis=-1) / 40.
-        precision_ground_res = precision_ground_op[:, :, ::4]
-        precision_ground_res = np.sum(precision_ground_res, axis=-1) / 11.
+        precision_ground_res = precision_ground_op[:, :, 1:]
+        precision_ground_res = np.sum(precision_ground_res, axis=-1) / 40.
         log_string(str(precision_ground_res))
 
         log_string('precision_3d:')
-        # precision_3d_res = precision_3d_op[:, :, 1:]
-        # precision_3d_res = np.sum(precision_3d_res, axis=-1) / 40.
-        precision_3d_res = precision_3d_op[:, :, ::4]
-        precision_3d_res = np.sum(precision_3d_res, axis=-1) / 11.
+        precision_3d_res = precision_3d_op[:, :, 1:]
+        precision_3d_res = np.sum(precision_3d_res, axis=-1) / 40.
         log_string(str(precision_3d_res))
 
         if 'Car' in self.cls_list:
