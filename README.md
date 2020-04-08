@@ -130,7 +130,7 @@ python lib/core/data_preprocessor.py --cfg configs/kitti/3dssd.yaml --split trai
 
 python lib/core/data_preprocessor.py --cfg configs/kitti/3dssd.yaml --split training --img_list val # val set
 
-python lib/core/data_preprocessor.py --cfg configs/kitti/3dssd.yaml --split training --img_list test # test set
+python lib/core/data_preprocessor.py --cfg configs/kitti/3dssd.yaml --split testing --img_list test # test set
 ```
 
 The preprocessed data will be saved in directory **data/KITTI**. You can also modify the dataset path and saving path in configure file:
