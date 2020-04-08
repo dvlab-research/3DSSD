@@ -173,7 +173,7 @@ python lib/core/trainer.py --cfg configs/kitti/3dssd/3dssd.yaml
 
 The trained models, configuration and logs will be saved in the **log** folder, which can also be assigned in configure files.
 
-To load some pretrained model, you can use **--restore_model_path**.
+To load a pretrained model, you can use **--restore_model_path**.
 ```
 python lib/core/trainer.py --cfg configs/kitti/3dssd/3dssd.yaml --restore_model_path /path/to/model
 ```
