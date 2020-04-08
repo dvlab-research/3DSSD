@@ -194,6 +194,12 @@ python lib/core/evaluator.py --cfg configs/kitti/3dssd/3dssd.yaml --restore_mode
 
 KITTI Detection results and evaluation results will be saved in the **result** folder. 
 
+In order to test a model and store its prediction results, run
+
+```
+python lib/core/tester.py --cfg configs/kitti/3dssd/3dssd.yaml --restore_model_path /path/to/weight
+```
+
 
 ### TODO List
 - [x] Multiple GPUs for training
