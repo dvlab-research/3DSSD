@@ -1,6 +1,6 @@
 llvmlite==0.28.0
 numba==0.43.0
-numpy
+numpy==1.14.5
 tqdm
 nuscenes-devkit
 opencv-python

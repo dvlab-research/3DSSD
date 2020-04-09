@@ -24,8 +24,9 @@ from nuscenes.nuscenes import NuScenes
 from nuscenes.utils.data_classes import LidarPointCloud, RadarPointCloud, Box
 from pyquaternion import Quaternion
 from dataset.data_provider.data_provider import DataFromList, MultiProcessMapData, BatchDataNuscenes
+from dataset.dataloader.dataloader import Dataset
 
-class NuScenesDataset:
+class NuScenesDataset(Dataset):
     """
     NuScenes dataset loader and producer
     """
@@ -455,11 +456,13 @@ class NuScenesDataset:
             print('class name: %s / class num: %d / mean size: (%f, %f, %f)' % (k, v, self.cls_size_dict[k][0], self.cls_size_dict[k][1], self.cls_size_dict[k][2])) # [l, w, h]
 
         if self.img_list in ['train', 'val', 'trainval'] and cfg.TEST.WITH_GT and cfg.TRAIN.AUGMENTATIONS.MIXUP.OPEN:
+            print('**** Generating groundtruth database ****')
             for cur_cls_name, mixup_sample_dict in mixup_label_dict.items():
                 cur_mixup_db_cls_path = self.mixup_db_cls_path[cur_cls_name]
                 cur_mixup_db_trainlist_path= self.mixup_db_trainlist_path[cur_cls_name]
+                print('**** Class %s ****'%cur_cls_name)
                 with open(cur_mixup_db_trainlist_path, 'w') as f:
-                    for tmp_idx, tmp_cur_mixup_sample_dict in enumerate(mixup_sample_dict):
+                    for tmp_idx, tmp_cur_mixup_sample_dict in tqdm.tqdm(enumerate(mixup_sample_dict)):
                         f.write('%06d.npy\n'%tmp_idx)
                         np.save(os.path.join(cur_mixup_db_cls_path, '%06d.npy'%tmp_idx), tmp_cur_mixup_sample_dict)
         print('Ending of the preprocess !!!')
