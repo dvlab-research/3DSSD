@@ -29,13 +29,14 @@ class DataAugmentor:
 
         # mixup augmentation
         self.mixup = cfg.TRAIN.AUGMENTATIONS.MIXUP.OPEN
-        self.mixup_class = cfg.TRAIN.AUGMENTATIONS.MIXUP.CLASS
-        self.mixup_number = cfg.TRAIN.AUGMENTATIONS.MIXUP.NUMBER
-        self.workers_num = workers_num
-        self.mixup_sampler_list = []
-        for i in range(self.workers_num):
-            mixup_sampler = MixupSampler()
-            self.mixup_sampler_list.append(mixup_sampler)
+        if self.mixup:
+            self.mixup_class = cfg.TRAIN.AUGMENTATIONS.MIXUP.CLASS
+            self.mixup_number = cfg.TRAIN.AUGMENTATIONS.MIXUP.NUMBER
+            self.workers_num = workers_num
+            self.mixup_sampler_list = []
+            for i in range(self.workers_num):
+                mixup_sampler = MixupSampler()
+                self.mixup_sampler_list.append(mixup_sampler)
 
         # Single object augmentaiton
         self.aug_type = cfg.TRAIN.AUGMENTATIONS.PROB_TYPE

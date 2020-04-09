@@ -126,7 +126,8 @@ class NuScenesDataset(Dataset):
             with open(self.train_list, 'rb') as f:
                 self.train_npy_list = pickle.load(f)
             self.sample_num = len(self.train_npy_list)
-            self.data_augmentor = DataAugmentor('NuScenes', workers_num=self.workers_num)
+            if self.is_training:
+                self.data_augmentor = DataAugmentor('NuScenes', workers_num=self.workers_num)
 
         elif mode == 'preprocessing':
             # preprocess raw data

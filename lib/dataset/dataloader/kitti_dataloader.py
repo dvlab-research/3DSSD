@@ -63,7 +63,8 @@ class KittiDataset(Dataset):
                 self.train_npy_list = [line.strip('\n') for line in f.readlines()]
             self.train_npy_list = np.array(self.train_npy_list)
             self.sample_num = len(self.train_npy_list)
-            self.data_augmentor = DataAugmentor('KITTI', workers_num=self.workers_num)
+            if self.is_training:
+                self.data_augmentor = DataAugmentor('KITTI', workers_num=self.workers_num)
 
         elif mode == 'preprocessing':
             # preprocess raw data
