@@ -55,44 +55,6 @@ REGISTER_OP("QueryBoxes3dPoints")
         c->set_output(1, output2);
         return Status::OK();
     });
-REGISTER_OP("QueryBallPointDynamicShape")
-    .Attr("nsample: int")
-    .Input("xyz1: float32")
-    .Input("xyz2: float32")
-    .Input("radius: float32") // [bs, npoint, split_bin_num]
-    .Output("idx: int32")
-    .Output("pts_cnt: int32")
-    .Output("radius_idx: int32") // [bs, npoint, nsample, 2]
-    .Output("radius_rate: float32") // [bs, npoint, nsample, 2]
-    .SetShapeFn([](::tensorflow::shape_inference::InferenceContext* c) {
-        ::tensorflow::shape_inference::ShapeHandle dims2; // batch_size * npoint * 3
-        c->WithRank(c->input(1), 3, &dims2);
-        int nsample;
-        TF_RETURN_IF_ERROR(c->GetAttr("nsample", &nsample));
-        ::tensorflow::shape_inference::ShapeHandle output1 = c->MakeShape({c->Dim(dims2, 0), c->Dim(dims2, 1), nsample});
-        c->set_output(0, output1);
-        ::tensorflow::shape_inference::ShapeHandle output2 = c->MakeShape({c->Dim(dims2, 0), c->Dim(dims2, 1)});
-        c->set_output(1, output2);
-        ::tensorflow::shape_inference::ShapeHandle output3 = c->MakeShape({c->Dim(dims2, 0), c->Dim(dims2, 1), nsample, 2});
-        c->set_output(2, output3);
-        ::tensorflow::shape_inference::ShapeHandle output4 = c->MakeShape({c->Dim(dims2, 0), c->Dim(dims2, 1), nsample, 2});
-        c->set_output(3, output4);
-        return Status::OK();
-    });
-REGISTER_OP("QueryDynamicRadiusForPoints")
-    .Input("xyz1: float32") // [bs, npoint, nsample, 3]
-    .Input("radius: float32") // [bs, npoint, split_bin_num]
-    .Output("radius_idx: int32") // [bs, npoint, nsample, 2]
-    .Output("radius_rate: float32") // [bs, npoint, nsample, 2]
-    .SetShapeFn([](::tensorflow::shape_inference::InferenceContext* c) {
-        ::tensorflow::shape_inference::ShapeHandle dims1; // batch_size, npoint, nsample, 3
-        c->WithRank(c->input(0), 4, &dims1);
-        ::tensorflow::shape_inference::ShapeHandle output1 = c->MakeShape({c->Dim(dims1, 0), c->Dim(dims1, 1), c->Dim(dims1, 2), 2}); // bs, npoint, nsample, 2
-        c->set_output(0, output1);
-        ::tensorflow::shape_inference::ShapeHandle output2 = c->MakeShape({c->Dim(dims1, 0), c->Dim(dims1, 1), c->Dim(dims1, 2), 2});
-        c->set_output(1, output2);
-        return Status::OK();
-    });
 REGISTER_OP("QueryBallPoint")
     .Attr("radius: float")
     .Attr("nsample: int")
@@ -136,24 +98,6 @@ REGISTER_OP("QueryBallPointWithidx")
     .Input("xyz1: float32")
     .Input("xyz2: float32")
     .Input("sort_idx: int32")
-    .Output("idx: int32")
-    .Output("pts_cnt: int32")
-    .SetShapeFn([](::tensorflow::shape_inference::InferenceContext* c) {
-        ::tensorflow::shape_inference::ShapeHandle dims2; // batch_size * npoint * 3
-        c->WithRank(c->input(1), 3, &dims2);
-        int nsample;
-        TF_RETURN_IF_ERROR(c->GetAttr("nsample", &nsample));
-        ::tensorflow::shape_inference::ShapeHandle output1 = c->MakeShape({c->Dim(dims2, 0), c->Dim(dims2, 1), nsample});
-        c->set_output(0, output1);
-        ::tensorflow::shape_inference::ShapeHandle output2 = c->MakeShape({c->Dim(dims2, 0), c->Dim(dims2, 1)});
-        c->set_output(1, output2);
-        return Status::OK();
-    });
-REGISTER_OP("QueryBallPointDynamicRadius")
-    .Attr("nsample: int")
-    .Input("xyz1: float32")
-    .Input("xyz2: float32")
-    .Input("radius: float32") // [bs, npoint]
     .Output("idx: int32")
     .Output("pts_cnt: int32")
     .SetShapeFn([](::tensorflow::shape_inference::InferenceContext* c) {
@@ -320,97 +264,6 @@ class QueryBoxes3dPointsGpuOp : public OpKernel {
 REGISTER_KERNEL_BUILDER(Name("QueryBoxes3dPoints").Device(DEVICE_GPU), QueryBoxes3dPointsGpuOp);
 
 
-// QueryBallPointDynamicShape 
-void queryBallPointDynamicShapeLauncher(int b, int n, int m, int split_bin_num, int nsample, const float *xyz1, const float *xyz2, const float* radius, int *idx, int *pts_cnt, int* radius_idx, float* radius_rate);
-class QueryBallPointDynamicShapeGpuOp : public OpKernel {
-    public:
-        explicit QueryBallPointDynamicShapeGpuOp(OpKernelConstruction* context) : OpKernel(context) {
-            OP_REQUIRES_OK(context, context->GetAttr("nsample", &nsample_));
-            OP_REQUIRES(context, nsample_ > 0, errors::InvalidArgument("QueryBallPointDynamicShapeGpuOp expects positive nsample"));
-        }
-
-        void Compute(OpKernelContext* context) override {
-            const Tensor& xyz1_tensor = context->input(0);
-            OP_REQUIRES(context, xyz1_tensor.dims()==3 && xyz1_tensor.shape().dim_size(2)==3, errors::InvalidArgument("QueryBallPoint expects (batch_size, ndataset, 3) xyz1 shape."));
-            int b = xyz1_tensor.shape().dim_size(0);
-            int n = xyz1_tensor.shape().dim_size(1);
-
-            const Tensor& xyz2_tensor = context->input(1);
-            OP_REQUIRES(context, xyz2_tensor.dims()==3 && xyz2_tensor.shape().dim_size(2)==3, errors::InvalidArgument("QueryBallPoint expects (batch_size, npoint, 3) xyz2 shape."));
-            int m = xyz2_tensor.shape().dim_size(1);
-
-            const Tensor& radius_tensor = context->input(2);
-            OP_REQUIRES(context, radius_tensor.dims()==3 && radius_tensor.shape().dim_size(1)==m, errors::InvalidArgument("QueryBallPoint expects (batch_size, npoint, split_bin_num) radius shape."));
-            int split_bin_num = radius_tensor.shape().dim_size(2);
-
-            Tensor *idx_tensor = nullptr;
-            OP_REQUIRES_OK(context, context->allocate_output(0, TensorShape{b,m,nsample_}, &idx_tensor));
-            Tensor *pts_cnt_tensor = nullptr;
-            OP_REQUIRES_OK(context, context->allocate_output(1, TensorShape{b,m}, &pts_cnt_tensor));
-            Tensor *radius_idx_tensor = nullptr;
-            OP_REQUIRES_OK(context, context->allocate_output(2, TensorShape{b,m,nsample_,2}, &radius_idx_tensor));
-            Tensor *radius_rate_tensor = nullptr;
-            OP_REQUIRES_OK(context, context->allocate_output(3, TensorShape{b,m,nsample_,2}, &radius_rate_tensor));
-
-            auto xyz1_flat = xyz1_tensor.flat<float>();
-            const float *xyz1 = &(xyz1_flat(0));
-            auto xyz2_flat = xyz2_tensor.flat<float>();
-            const float *xyz2 = &(xyz2_flat(0));
-            auto radius_flat = radius_tensor.flat<float>();
-            const float *radius = &(radius_flat(0));
-
-            auto idx_flat = idx_tensor->flat<int>();
-            int *idx = &(idx_flat(0));
-            auto pts_cnt_flat = pts_cnt_tensor->flat<int>();
-            int *pts_cnt = &(pts_cnt_flat(0));
-
-            auto radius_idx_flat = radius_idx_tensor->flat<int>();
-            int *radius_idx = &(radius_idx_flat(0));
-            auto radius_rate_flat = radius_rate_tensor->flat<float>();
-            float *radius_rate = &(radius_rate_flat(0));
-            queryBallPointDynamicShapeLauncher(b,n,m,split_bin_num,nsample_,xyz1,xyz2,radius,idx,pts_cnt,radius_idx,radius_rate);
-        }
-    private:
-        int nsample_;
-};
-REGISTER_KERNEL_BUILDER(Name("QueryBallPointDynamicShape").Device(DEVICE_GPU), QueryBallPointDynamicShapeGpuOp);
-
-// QueryDynamicRadiusForPoints 
-void queryDynamicRadiusForPointsLauncher(int b, int n, int nsample, int split_bin_num, const float *xyz1, const float* radius, int* radius_idx, float* radius_rate);
-class QueryDynamicRadiusForPointsGpuOp : public OpKernel {
-    public:
-        explicit QueryDynamicRadiusForPointsGpuOp(OpKernelConstruction* context) : OpKernel(context) {}
-
-        void Compute(OpKernelContext* context) override {
-            const Tensor& xyz1_tensor = context->input(0);
-            OP_REQUIRES(context, xyz1_tensor.dims()==4 && xyz1_tensor.shape().dim_size(3)==3, errors::InvalidArgument("QueryDynamicRadiusForPoints expects (batch_size, npoint, nsample, 3) xyz1 shape."));
-            int b = xyz1_tensor.shape().dim_size(0);
-            int n = xyz1_tensor.shape().dim_size(1);
-            int nsample = xyz1_tensor.shape().dim_size(2);
-
-            const Tensor& radius_tensor = context->input(1);
-            OP_REQUIRES(context, radius_tensor.dims()==3 && radius_tensor.shape().dim_size(1)==n, errors::InvalidArgument("QueryDynamicRadiusForPoints expects (batch_size, npoint, split_bin_num) radius shape."));
-            int split_bin_num = radius_tensor.shape().dim_size(2);
-
-            Tensor *radius_idx_tensor = nullptr;
-            OP_REQUIRES_OK(context, context->allocate_output(0, TensorShape{b,n,nsample,2}, &radius_idx_tensor));
-            Tensor *radius_rate_tensor = nullptr;
-            OP_REQUIRES_OK(context, context->allocate_output(1, TensorShape{b,n,nsample,2}, &radius_rate_tensor));
-
-            auto xyz1_flat = xyz1_tensor.flat<float>();
-            const float *xyz1 = &(xyz1_flat(0));
-            auto radius_flat = radius_tensor.flat<float>();
-            const float *radius = &(radius_flat(0));
-
-            auto radius_idx_flat = radius_idx_tensor->flat<int>();
-            int *radius_idx = &(radius_idx_flat(0));
-            auto radius_rate_flat = radius_rate_tensor->flat<float>();
-            float *radius_rate = &(radius_rate_flat(0));
-            queryDynamicRadiusForPointsLauncher(b,n,nsample,split_bin_num,xyz1,radius,radius_idx,radius_rate);
-        }
-};
-REGISTER_KERNEL_BUILDER(Name("QueryDynamicRadiusForPoints").Device(DEVICE_GPU), QueryDynamicRadiusForPointsGpuOp);
-
 
 
 // QueryBallPoint
@@ -553,51 +406,6 @@ class QueryBallPointDilatedGpuOp : public OpKernel {
 };
 REGISTER_KERNEL_BUILDER(Name("QueryBallPointDilated").Device(DEVICE_GPU), QueryBallPointDilatedGpuOp);
 
-
-// QueryBallPointDynamicRadius 
-void queryBallPointDynamicRadiusLauncher(int b, int n, int m, int nsample, const float *xyz1, const float *xyz2, const float* radius, int *idx, int *pts_cnt);
-class QueryBallPointDynamicRadiusGpuOp : public OpKernel {
-    public:
-        explicit QueryBallPointDynamicRadiusGpuOp(OpKernelConstruction* context) : OpKernel(context) {
-            OP_REQUIRES_OK(context, context->GetAttr("nsample", &nsample_));
-            OP_REQUIRES(context, nsample_ > 0, errors::InvalidArgument("queryBallPointDynamicRadius expects positive nsample"));
-        }
-
-        void Compute(OpKernelContext* context) override {
-            const Tensor& xyz1_tensor = context->input(0);
-            OP_REQUIRES(context, xyz1_tensor.dims()==3 && xyz1_tensor.shape().dim_size(2)==3, errors::InvalidArgument("QueryBallPoint expects (batch_size, ndataset, 3) xyz1 shape."));
-            int b = xyz1_tensor.shape().dim_size(0);
-            int n = xyz1_tensor.shape().dim_size(1);
-
-            const Tensor& xyz2_tensor = context->input(1);
-            OP_REQUIRES(context, xyz2_tensor.dims()==3 && xyz2_tensor.shape().dim_size(2)==3, errors::InvalidArgument("QueryBallPoint expects (batch_size, npoint, 3) xyz2 shape."));
-            int m = xyz2_tensor.shape().dim_size(1);
-
-            const Tensor& radius_tensor = context->input(2);
-            OP_REQUIRES(context, radius_tensor.dims()==2 && radius_tensor.shape().dim_size(1)==m, errors::InvalidArgument("QueryBallPoint expects (batch_size, ndataset, 3) xyz1 shape."));
-
-            Tensor *idx_tensor = nullptr;
-            OP_REQUIRES_OK(context, context->allocate_output(0, TensorShape{b,m,nsample_}, &idx_tensor));
-            Tensor *pts_cnt_tensor = nullptr;
-            OP_REQUIRES_OK(context, context->allocate_output(1, TensorShape{b,m}, &pts_cnt_tensor));
-
-            auto xyz1_flat = xyz1_tensor.flat<float>();
-            const float *xyz1 = &(xyz1_flat(0));
-            auto xyz2_flat = xyz2_tensor.flat<float>();
-            const float *xyz2 = &(xyz2_flat(0));
-            auto radius_flat = radius_tensor.flat<float>();
-            const float *radius = &(radius_flat(0));
-
-            auto idx_flat = idx_tensor->flat<int>();
-            int *idx = &(idx_flat(0));
-            auto pts_cnt_flat = pts_cnt_tensor->flat<int>();
-            int *pts_cnt = &(pts_cnt_flat(0));
-            queryBallPointDynamicRadiusLauncher(b,n,m,nsample_,xyz1,xyz2,radius,idx,pts_cnt);
-        }
-    private:
-        int nsample_;
-};
-REGISTER_KERNEL_BUILDER(Name("QueryBallPointDynamicRadius").Device(DEVICE_GPU), QueryBallPointDynamicRadiusGpuOp);
 
 // SelectionSort
 void selectionSortLauncher(int b, int n, int m, int k, const float *dist, int *outi, float *out);

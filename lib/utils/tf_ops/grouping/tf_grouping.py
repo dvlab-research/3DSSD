@@ -50,37 +50,6 @@ def query_boxes_3d_points(nsample, xyz, proposals):
 ops.NoGradient('QueryBoxes3dPoints')
 
 
-# query points with dynamic shape
-def query_ball_point_dynamic_shape(nsample, xyz1, xyz2, radius):
-    '''
-    Input:
-        nsample: int32, number of points selected in each region
-        xyz1: (batch_size, ndataset, 3) float32 array, input points
-        xyz2: (batch_size, npoint, 3) float32 array, query points
-        radius: (batch_size, npoint, split_bin_num) float32 array, the length of each split bin of xyz2
-    Output:
-        idx: (batch_size, npoint, nsample) int32 array, indices to input points
-        pts_cnt: (batch_size, npoint) int32 array, number of unique points in each local region
-    '''
-    return grouping_module.query_ball_point_dynamic_shape(xyz1, xyz2, radius, nsample)
-
-ops.NoGradient('QueryBallPointDynamicShape')
-
-# query their dynamic radius
-def query_dynamic_radius_for_points(xyz1, radius):
-    '''
-    Query the dynamic radius for points in xyz1
-    Input:
-        xyz1: (batch_size, npoint, nsample, 3) float32 array, input points
-        radius: (batch_size, npoint, split_bin_num) float32 array, the length of each split bin of xyz2
-    Output:
-        radius_idx: (batch_size, npoint, nsample, 2) radius idx
-        radius_rate: (batch_size, npoint, nsample, 2) radius_rate
-    '''
-    return grouping_module.query_dynamic_radius_for_points(xyz1, radius)
-ops.NoGradient('QueryDynamicRadiusForPoints')
-
-
 def query_ball_point(radius, nsample, xyz1, xyz2):
     '''
     Input:
@@ -130,21 +99,6 @@ def query_ball_point_withidx(radius, nsample, xyz1, xyz2, sort_idx):
 
 ops.NoGradient('QueryBallPointWithidx')
 
-
-def query_ball_point_dynamic_radius(nsample, xyz1, xyz2, radius):
-    '''
-    Input:
-        nsample: int32, number of points selected in each ball region
-        xyz1: (batch_size, ndataset, 3) float32 array, input points
-        xyz2: (batch_size, npoint, 3) float32 array, query points
-        radius: (batch_size, npoint) float32 array, different group_radius for different xyz2
-    Output:
-        idx: (batch_size, npoint, nsample) int32 array, indices to input points
-        pts_cnt: (batch_size, npoint) int32 array, number of unique points in each local region
-    '''
-    return grouping_module.query_ball_point_dynamic_radius(xyz1, xyz2, radius, nsample)
-
-ops.NoGradient('QueryBallPointDynamicRadius')
 
 def select_top_k(k, dist):
     '''
@@ -201,27 +155,3 @@ def knn_point(k, xyz1, xyz2):
     #val, idx = tf.nn.top_k(-dist, k=k) # ONLY SUPPORT CPU
     return val, idx
 
-if __name__ == '__main__':
-    # test whether can calc the points inside 
-    xyz1 = np.array([[0, 0, 0], [0.2, 0.3, 0.34], [-0.2, 0.3, 0.34], [-0.34, -0.3, -0.2], [0.9, 0.9, 0.9], [0.8, 0.3, -0.00001]], dtype=np.float32)
-    xyz2 = np.array([[0, 0, 0]], dtype=np.float32)
-    xyz1 = tf.reshape(xyz1, [1, 6, 3])
-    xyz2 = tf.reshape(xyz2, [1, 1, 3])
-
-    bin_split_num = 32
-    radius = np.ones([bin_split_num], dtype=np.float32)
-    radius = tf.cast(tf.reshape(radius, [1, 1, bin_split_num]), tf.float32)
-    idx, pts_cnt, radius_idx, radius_rate = query_ball_point_dynamic_shape(10, xyz1, xyz2, radius)
-    sess = tf.Session()
-    idx_op, pts_cnt_op, radius_idx_op, radius_rate_op = sess.run([idx, pts_cnt, radius_idx,radius_rate])
-    print(idx_op, idx_op.shape)
-    print(pts_cnt_op, pts_cnt_op.shape)
-    print(radius_idx_op, radius_idx_op.shape)
-    print(radius_rate_op, radius_rate_op.shape)
-
-    grouped_xyz = group_point(xyz1, idx)
-    radius_idx, radius_rate = query_dynamic_radius_for_points(grouped_xyz, radius)
-    grouped_xyz_op, radius_idx_op, radius_rate_op = sess.run([grouped_xyz, radius_idx, radius_rate])
-    print(grouped_xyz_op, grouped_xyz_op.shape)
-    print(radius_idx_op, radius_idx_op.shape)
-    print(radius_rate_op, radius_rate_op.shape)

@@ -209,140 +209,6 @@ __global__ void query_points_iou_gpu(int b, int n, int anchors_num, int gt_num,
 }
 
 
-/* query ball points dynamic */
-// input: nsample (1), xyz1 (b,n,3), xyz2 (b,m,3), radius (b, m, split_bin_num)
-// output: idx (b,m,nsample), pts_cnt (b,m), radius_idx (b,m,nsample,2), radius_rate (b,m,nsample,2)
-__global__ void query_ball_point_dynamic_shape_gpu(int b, int n, int m, int split_bin_num, int nsample, const float *xyz1, const float *xyz2, const float* radius, int *idx, int *pts_cnt, int* radius_idx, float* radius_rate) {
-    int total_idx = b * m;
-    CUDA_1D_KERNEL_LOOP(point_inds, total_idx){
-        int batch_index = point_inds / m;
-
-        const float* cur_xyz1;
-        const float* cur_xyz2;
-        cur_xyz1 = xyz1 + n*3*batch_index;
-        cur_xyz2 = xyz2 + point_inds * 3;
-
-        const float* cur_radius;
-        cur_radius = radius + point_inds * split_bin_num; // split_bin_num [0, 2*pi]
-
-        int* cur_idx;
-        int* cur_pts_cnt;
-        cur_idx = idx + nsample*point_inds;
-        cur_pts_cnt = pts_cnt + point_inds; // counting how many unique points selected in local region
- 
-        int* cur_radius_idx;
-        float* cur_radius_rate;
-        cur_radius_idx = radius_idx + point_inds * nsample * 2;
-        cur_radius_rate = radius_rate + point_inds * nsample * 2;
-
-        float x2=cur_xyz2[0];
-        float y2=cur_xyz2[1];
-        float z2=cur_xyz2[2];
-
-        float x1, y1, z1, d;
-        float d_theta;
-        float cur_theta;
-        float interval = 2 * M_PI / float(split_bin_num); // 2pi / split_bin
-        int low_idx, high_idx;
-        float low_rate, high_rate;
-        float judge_radius;
-
-        int cnt = 0;
-        for (int k=0;k<n;++k) {
-            if (cnt == nsample)
-                break; // only pick the FIRST nsample points in the ball
-            x1=cur_xyz1[k*3+0];
-            y1=cur_xyz1[k*3+1];
-            z1=cur_xyz1[k*3+2];
-            d=max(sqrtf((x2-x1)*(x2-x1)+(y2-y1)*(y2-y1)+(z2-z1)*(z2-z1)),1e-20f);
-            d_theta=max(sqrtf((x2-x1)*(x2-x1)+(z2-z1)*(z2-z1)),1e-20f);
-            cur_theta = acos((x1-x2)/d_theta); // [0, pi]
-            // first of all, according to current x,y,z determine the two radius to use
-            if (z1 - z2 >= 0) { // [0, pi]
-                low_idx = floorf(cur_theta / interval); 
-                high_idx = low_idx + 1;
-            } 
-            else{ // z1 - z2 < 0 [pi, 2pi]
-                cur_theta = 2*M_PI - cur_theta;
-                low_idx = floorf(cur_theta / interval); 
-                high_idx = low_idx + 1;
-            }
-            low_rate = (cur_theta - float(low_idx) * interval) / interval;
-            high_rate = (float(high_idx) * interval - cur_theta) / interval;
-            high_idx = high_idx % split_bin_num;
-            low_idx = low_idx % split_bin_num;
-            judge_radius = high_rate * cur_radius[low_idx] + low_rate * cur_radius[high_idx]; 
-            // printf("current theta is: (%f, %f, %f), %f, %f, %f, %f, %f, %d, %d", x1,y1,z1,cur_theta,low_rate,high_rate, d, judge_radius, low_idx, high_idx);
-            if (d<judge_radius) {
-                if (cnt==0) { // set ALL indices to k, s.t. if there are less points in ball than nsample, we still have valid (repeating) indices
-                    for (int l=0;l<nsample;++l){
-                        cur_idx[l] = k;
-                        cur_radius_idx[2*l] = low_idx;
-                        cur_radius_idx[2*l+1] = high_idx;
-                        cur_radius_rate[2*l] = high_rate;
-                        cur_radius_rate[2*l+1] = low_rate;
-                    }
-                }
-                cur_idx[cnt] = k;
-                cur_radius_idx[2*cnt] = low_idx;
-                cur_radius_idx[2*cnt+1] = high_idx;
-                cur_radius_rate[2*cnt] = high_rate;
-                cur_radius_rate[2*cnt+1] = low_rate;
-                cnt+=1;
-            }
-        }
-        cur_pts_cnt[0] = cnt;
-    }
-}
-
-
-/* query dynamic radius */
-// input: xyz1 (b, n, nsample, 3) radius (b, n, split_bin_num)
-// output: radius_idx (b,n,nsample,2), radius_rate (b,n,nsample,2)
-__global__ void query_dynamic_radius_for_points_gpu(int b, int n, int nsample, int split_bin_num, const float *xyz1, const float* radius, int* radius_idx, float* radius_rate) {
-    int total_idx = b * n * nsample;
-    CUDA_1D_KERNEL_LOOP(point_inds, total_idx){
-        const float* cur_xyz1;
-        cur_xyz1 = xyz1 + point_inds * 3;
-
-        int* cur_radius_idx;
-        float* cur_radius_rate;
-        cur_radius_idx = radius_idx + point_inds * 2;
-        cur_radius_rate = radius_rate + point_inds * 2;
-
-        float x1=cur_xyz1[0];
-        float z1=cur_xyz1[2];
-
-        float d_theta;
-        float cur_theta;
-        float interval = 2 * M_PI / float(split_bin_num); // 2pi / split_bin
-        int low_idx, high_idx;
-        float low_rate, high_rate;
-
-        d_theta=max(sqrtf(x1*x1+z1*z1),1e-20f);
-        cur_theta = acos(x1/d_theta); // [0, pi]
-        // first of all, according to current x,y,z determine the two radius to use
-        if (z1 >= 0) { // [0, pi]
-            low_idx = floorf(cur_theta / interval); 
-            high_idx = low_idx + 1;
-        } 
-        else{ // z1 < 0 [pi, 2pi]
-            cur_theta = 2*M_PI - cur_theta;
-            low_idx = floorf(cur_theta / interval); 
-            high_idx = low_idx + 1;
-        }
-        low_rate = (cur_theta - float(low_idx) * interval) / interval;
-        high_rate = (float(high_idx) * interval - cur_theta) / interval;
-        high_idx = high_idx % split_bin_num;
-        low_idx = low_idx % split_bin_num;
-        cur_radius_idx[0] = low_idx;
-        cur_radius_idx[1] = high_idx;
-        cur_radius_rate[0] = high_rate;
-        cur_radius_rate[1] = low_rate;
-    }
-}
-
-
 
 // input: radius (1), nsample (1), xyz1 (b,n,3), xyz2 (b,m,3)
 // output: idx (b,m,nsample), pts_cnt (b,m)
@@ -491,51 +357,6 @@ __global__ void query_ball_point_dilated_gpu(int b, int n, int m, float min_radi
 }
 
 
-// input: nsample (1), xyz1 (b,n,3), xyz2 (b,m,3), radius (b, m)
-// output: idx (b,m,nsample), pts_cnt (b,m)
-__global__ void query_ball_point_dynamic_radius_gpu(int b, int n, int m, int nsample, const float *xyz1, const float *xyz2, const float* radius, int *idx, int *pts_cnt) {
-    int total_idx = b * m;
-    CUDA_1D_KERNEL_LOOP(point_inds, total_idx){
-        int batch_index = point_inds / m;
-        float cur_radius = radius[point_inds];
-
-        const float* cur_xyz1;
-        const float* cur_xyz2;
-        cur_xyz1 = xyz1 + n*3*batch_index;
-        cur_xyz2 = xyz2 + point_inds * 3;
-
-        int* cur_idx;
-        int* cur_pts_cnt;
-        cur_idx = idx + nsample*point_inds;
-        cur_pts_cnt = pts_cnt + point_inds; // counting how many unique points selected in local region
-
-        float x2=cur_xyz2[0];
-        float y2=cur_xyz2[1];
-        float z2=cur_xyz2[2];
-
-        float x1, y1, z1, d;
-
-        int cnt = 0;
-        for (int k=0;k<n;++k) {
-            if (cnt == nsample)
-                break; // only pick the FIRST nsample points in the ball
-            x1=cur_xyz1[k*3+0];
-            y1=cur_xyz1[k*3+1];
-            z1=cur_xyz1[k*3+2];
-            d=max(sqrtf((x2-x1)*(x2-x1)+(y2-y1)*(y2-y1)+(z2-z1)*(z2-z1)),1e-20f);
-            if (d<cur_radius) {
-                if (cnt==0) { // set ALL indices to k, s.t. if there are less points in ball than nsample, we still have valid (repeating) indices
-                    for (int l=0;l<nsample;++l)
-                        cur_idx[l] = k;
-                }
-                cur_idx[cnt] = k;
-                cnt+=1;
-            }
-        }
-        cur_pts_cnt[0] = cnt;
-    }
-}
-
 // input: points (b,n,c), idx (b,m,nsample)
 // output: out (b,m,nsample,c)
 __global__ void group_point_gpu(int b, int n, int c, int m, int nsample, const float *points, const int *idx, float *out) {
@@ -637,10 +458,6 @@ void queryPointsIouLauncher(int b, int n, int anchors_num, int gt_num, const flo
                                                          iou_matrix, iou_points);
 }
 
-void queryBallPointDynamicShapeLauncher(int b, int n, int m, int split_bin_num, int nsample, const float *xyz1, const float *xyz2, const float* radius, int *idx, int *pts_cnt, int* radius_idx, float* radius_rate){
-    query_ball_point_dynamic_shape_gpu<<<block_num,threadsPerBlock>>>(b,n,m,split_bin_num,nsample,xyz1,xyz2,radius,idx,pts_cnt,radius_idx,radius_rate);
-}
-
 void queryBallPointLauncher(int b, int n, int m, float radius, int nsample, const float *xyz1, const float *xyz2, int *idx, int *pts_cnt) {
     query_ball_point_gpu<<<block_num,threadsPerBlock>>>(b,n,m,radius,nsample,xyz1,xyz2,idx,pts_cnt);
     //cudaDeviceSynchronize();
@@ -651,12 +468,6 @@ void queryBallPointDilatedLauncher(int b, int n, int m, float min_radius, float 
 }
 void queryBallPointWithidxLauncher(int b, int n, int m, float radius, int nsample, const float *xyz1, const float *xyz2, const int* sort_idx, int *idx, int *pts_cnt){
     query_ball_point_withidx_gpu<<<block_num,threadsPerBlock>>>(b,n,m,radius,nsample,xyz1,xyz2,sort_idx,idx,pts_cnt);
-}
-void queryBallPointDynamicRadiusLauncher(int b, int n, int m, int nsample, const float *xyz1, const float *xyz2, const float* radius, int *idx, int *pts_cnt){
-    query_ball_point_dynamic_radius_gpu<<<block_num,threadsPerBlock>>>(b,n,m,nsample,xyz1,xyz2,radius,idx,pts_cnt);
-}
-void queryDynamicRadiusForPointsLauncher(int b, int n, int nsample, int split_bin_num, const float *xyz1, const float* radius, int* radius_idx, float* radius_rate){
-    query_dynamic_radius_for_points_gpu<<<block_num,threadsPerBlock>>>(b, n, nsample, split_bin_num, xyz1, radius, radius_idx, radius_rate);
 }
 void selectionSortLauncher(int b, int n, int m, int k, const float *dist, int *outi, float *out) {
     selection_sort_gpu<<<b,256>>>(b,n,m,k,dist,outi,out); 
