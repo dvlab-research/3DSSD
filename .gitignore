@@ -5,7 +5,7 @@
 *.so
 *.o
 data/
-./dataset/
+dataset/
 log/
 result/
 scripts/
