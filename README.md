@@ -73,12 +73,12 @@ cd 3DSSD
 ```
 conda create -n 3dssd python=3.6
 source activate 3dssd
-pip install -r requirements.txt --user
+pip install -r requirements.txt
 ```
 
-Download and install tensorflow-1.4.0 [here](https://drive.google.com/file/d/1y5YvM9v1ji5qTh1OfS9VSkJd7bdzn4D1/view?usp=sharing) which is compiled with CUDA-9.0 and CuDNN-7.0.0.
+Download and install tensorflow-1.4.0 [here](https://drive.google.com/file/d/11JEMc-LEsINS6lYxvZ723Grzuemo9NZi/view?usp=sharing) which is compiled with CUDA-9.0 and CuDNN-7.0.0.
 ```
-pip install tensorflow-1.4.0-cp36-cp36m-linux_x86_64.whl --user
+pip install tensorflow-1.4.0-cp36-cp36m-linux_x86_64.whl
 ```
 
 (3) Compile and install 3DSSD library. Note that only GCC no later than version 5.0 can compile CUDA-9.0 code, make sure you install gcc-5. 
@@ -126,11 +126,11 @@ Currently we only support KITTI dataset, and NuScenes dataset will be supported 
 
 
 ```
-python lib/core/data_preprocessor.py --cfg configs/kitti/3dssd.yaml --split training --img_list train # train set
+python lib/core/data_preprocessor.py --cfg configs/kitti/3dssd/3dssd.yaml --split training --img_list train
 
-python lib/core/data_preprocessor.py --cfg configs/kitti/3dssd.yaml --split training --img_list val # val set
+python lib/core/data_preprocessor.py --cfg configs/kitti/3dssd/3dssd.yaml --split training --img_list val
 
-python lib/core/data_preprocessor.py --cfg configs/kitti/3dssd.yaml --split testing --img_list test # test set
+python lib/core/data_preprocessor.py --cfg configs/kitti/3dssd/3dssd.yaml --split testing --img_list test
 ```
 
 The preprocessed data will be saved in directory **data/KITTI**. You can also modify the dataset path and saving path in configure file:
