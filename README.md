@@ -89,7 +89,7 @@ bash compile_all.sh /path/to/tensorflow /path/to/cuda
 (4) Add **3DSSD/lib** to PYTHONPATH.
 
 ```
-export PYTHONPATH=$PYTHONPATH:/path/to/3DSSD/lib
+export PYTHONPATH=$PYTHONPATH:/path/to/3DSSD/lib:/path/to/3DSSD/mayavi
 ```
 
 ### Data Preparation
