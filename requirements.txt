@@ -14,5 +14,5 @@ pyyaml
 msgpack
 msgpack-numpy
 setproctitle
-mayavi
+# mayavi
 
